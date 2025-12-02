@@ -62,35 +62,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Gunakan AI handler yang sebenarnya untuk menghasilkan jawaban
             $aiHandler = new AIHandler();
-            $aiResponse = $aiHandler->analyzeText($konteks);
+            $aiResponse = $aiHandler->generateContent($konteks);
 
             if (!isset($aiResponse['error'])) {
                 $pesan_ai = '';
-                if (isset($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
-                    $candidate = $aiResponse['candidates'][0];
-                    if (isset($candidate['content']['parts']) && count($candidate['content']['parts']) > 0) {
-                        $pesan_ai = $candidate['content']['parts'][0]['text'];
-                    } else {
-                        // Coba format alternatif untuk respons AI
-                        if (isset($candidate['output'])) {
-                            $pesan_ai = $candidate['output'];
+
+                // Log respons untuk keperluan debugging
+                error_log("AI Response: " . print_r($aiResponse, true));
+
+                // Cek apakah respons mengandung candidates (format Google AI)
+                if (isset($aiResponse['candidates']) && is_array($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
+                    $firstCandidate = $aiResponse['candidates'][0];
+
+                    // Periksa berbagai kemungkinan struktur respons
+                    if (isset($firstCandidate['content']) && is_array($firstCandidate['content'])) {
+                        $content = $firstCandidate['content'];
+
+                        // Cek apakah content memiliki parts
+                        if (isset($content['parts']) && is_array($content['parts']) && count($content['parts']) > 0) {
+                            foreach ($content['parts'] as $part) {
+                                if (is_array($part) && isset($part['text'])) {
+                                    $pesan_ai = $part['text'];
+                                    break;
+                                } elseif (is_string($part)) {
+                                    $pesan_ai = $part;
+                                    break;
+                                }
+                            }
+                        } elseif (isset($content['text'])) {
+                            // Format langsung
+                            $pesan_ai = $content['text'];
                         } else {
-                            $pesan_ai = "Maaf, saya mengalami kesulitan memproses pertanyaan Anda saat ini. Silakan coba lagi.";
+                            // Coba akses content secara langsung jika berupa string
+                            if (is_string($content)) {
+                                $pesan_ai = $content;
+                            }
                         }
                     }
+                } elseif (isset($aiResponse['text'])) {
+                    // Respons dalam format sederhana
+                    $pesan_ai = $aiResponse['text'];
+                } elseif (isset($aiResponse['response']['text'])) {
+                    // Format respons nested
+                    $pesan_ai = $aiResponse['response']['text'];
+                } elseif (isset($aiResponse['output'])) {
+                    // Format output alternatif
+                    $pesan_ai = $aiResponse['output'];
+                } elseif (is_string($aiResponse)) {
+                    // Respons dalam bentuk string langsung
+                    $pesan_ai = $aiResponse;
                 } else {
-                    // Coba struktur respons alternatif
-                    if (isset($aiResponse['text'])) {
-                        $pesan_ai = $aiResponse['text'];
-                    } elseif (isset($aiResponse['response']) && isset($aiResponse['response']['text'])) {
-                        $pesan_ai = $aiResponse['response']['text'];
-                    } else {
-                        $pesan_ai = "Terima kasih atas pertanyaan Anda. Saya sedang memprosesnya dan akan memberikan jawaban terbaik.";
-                    }
+                    // Jika semua format tidak dikenali, lihat apakah respons berisi sesuatu
+                    $pesan_ai = "Saya telah menerima pertanyaan Anda dan sedang memprosesnya. Terima kasih atas pertanyaan Anda.";
+                }
+
+                // Jika jawaban masih kosong atau tidak valid, tambahkan pesan default
+                if (empty($pesan_ai) || !is_string($pesan_ai) || strlen(trim($pesan_ai)) < 5) {
+                    $pesan_ai = "Terima kasih atas pertanyaan Anda. Saya sedang memprosesnya dan akan memberikan jawaban terbaik berdasarkan pengetahuan yang saya miliki.";
                 }
             } else {
-                // Jika AI gagal, kembalikan pesan error
-                $pesan_ai = "Maaf, terjadi kesalahan saat memproses pertanyaan Anda: " . $aiResponse['error'];
+                // Jika API mengembalikan error, tangani dengan baik
+                $error_message = is_array($aiResponse['error']) ? $aiResponse['error']['message'] ?? $aiResponse['error'] : $aiResponse['error'];
+                $pesan_ai = "Maaf, saat ini saya mengalami kendala teknis. Mohon coba lagi nanti. Detail: " . $error_message;
             }
 
             // Simpan pesan pengguna dan AI ke database

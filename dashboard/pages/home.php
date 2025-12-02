@@ -3,8 +3,62 @@
 
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 
+global $pdo;
+
 // Ambil data pengguna
 $user = get_user_by_id($_SESSION['user_id']);
+
+// Ambil statistik pengguna
+try {
+    // Jumlah file diunggah
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM upload_files WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $jumlah_file = $stmt->fetchColumn();
+
+    // Jumlah soal dikerjakan
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM hasil_soal_user WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $jumlah_soal = $stmt->fetchColumn();
+
+    // Nilai rata-rata
+    $stmt = $pdo->prepare("SELECT AVG(nilai) FROM hasil_soal_user WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $nilai_rata = $stmt->fetchColumn();
+    $nilai_rata = $nilai_rata ? round($nilai_rata, 1) : 0;
+
+    // Ambil aktivitas terbaru
+    $stmt = $pdo->prepare("
+        SELECT f.original_name, f.created_at as file_uploaded_at, a.ringkasan, a.penjabaran_materi
+        FROM upload_files f
+        LEFT JOIN analisis_ai a ON f.id = a.file_id
+        WHERE f.user_id = ?
+        ORDER BY f.created_at DESC
+        LIMIT 3
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+    $aktivitas_terbaru = $stmt->fetchAll();
+
+    // Ambil aktivitas kerja soal terbaru
+    $stmt = $pdo->prepare("
+        SELECT hs.created_at, bs.soal
+        FROM hasil_soal_user hs
+        JOIN bank_soal_ai bs ON hs.soal_id = bs.id
+        WHERE hs.user_id = ?
+        ORDER BY hs.created_at DESC
+        LIMIT 3
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+    $aktivitas_soal = $stmt->fetchAll();
+
+} catch (Exception $e) {
+    error_log("Error getting dashboard stats: " . $e->getMessage());
+    // Data default jika terjadi error
+    $jumlah_file = 0;
+    $jumlah_soal = 0;
+    $nilai_rata = 0;
+    $aktivitas_terbaru = [];
+    $aktivitas_soal = [];
+}
 ?>
 
 <!-- Animations CSS -->
@@ -109,7 +163,7 @@ $user = get_user_by_id($_SESSION['user_id']);
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <div class="text-3xl font-bold text-gray-900">5</div>
+                    <div class="text-3xl font-bold text-gray-900"><?php echo $jumlah_file; ?></div>
                     <div class="text-gray-600">File Diunggah</div>
                 </div>
             </div>
@@ -123,7 +177,7 @@ $user = get_user_by_id($_SESSION['user_id']);
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <div class="text-3xl font-bold text-gray-900">12</div>
+                    <div class="text-3xl font-bold text-gray-900"><?php echo $jumlah_soal; ?></div>
                     <div class="text-gray-600">Soal Dikerjakan</div>
                 </div>
             </div>
@@ -137,7 +191,7 @@ $user = get_user_by_id($_SESSION['user_id']);
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <div class="text-3xl font-bold text-gray-900">8.5</div>
+                    <div class="text-3xl font-bold text-gray-900"><?php echo $nilai_rata; ?></div>
                     <div class="text-gray-600">Nilai Rata-rata</div>
                 </div>
             </div>
@@ -149,42 +203,50 @@ $user = get_user_by_id($_SESSION['user_id']);
         <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 animate-fade-in-up delay-500">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-xl font-bold text-gray-900">Aktivitas Terbaru</h3>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium">Lihat semua</a>
+                <a href="?page=analisis_materi" class="text-blue-600 hover:text-blue-800 font-medium">Lihat semua</a>
             </div>
             <div class="space-y-4">
-                <div class="flex items-start p-3 hover:bg-blue-50 rounded-lg transition duration-200 transform hover:scale-[1.02] transition-transform">
-                    <div class="p-2 bg-blue-100 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <?php if (!empty($aktivitas_terbaru)): ?>
+                    <?php foreach ($aktivitas_terbaru as $akt): ?>
+                    <div class="flex items-start p-3 hover:bg-blue-50 rounded-lg transition duration-200 transform hover:scale-[1.02] transition-transform">
+                        <div class="p-2 bg-blue-100 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <div class="font-medium text-gray-900"><?php echo escape($akt['original_name']); ?></div>
+                            <div class="text-sm text-gray-600">File diunggah: <?php echo date('d M Y', strtotime($akt['file_uploaded_at'])); ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if (!empty($aktivitas_soal)): ?>
+                    <?php foreach ($aktivitas_soal as $akt_soal): ?>
+                    <div class="flex items-start p-3 hover:bg-green-50 rounded-lg transition duration-200 transform hover:scale-[1.02] transition-transform">
+                        <div class="p-2 bg-green-100 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <div class="font-medium text-gray-900">Soal dikerjakan</div>
+                            <div class="text-sm text-gray-600">Soal dikerjakan: <?php echo date('d M Y H:i', strtotime($akt_soal['created_at'])); ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if (empty($aktivitas_terbaru) && empty($aktivitas_soal)): ?>
+                    <div class="text-center py-4 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
+                        <p class="mt-2">Belum ada aktivitas terbaru</p>
+                        <p class="text-sm">Unggah file atau kerjakan soal untuk memulai aktivitas belajar</p>
                     </div>
-                    <div class="ml-4">
-                        <div class="font-medium text-gray-900">Matematika - Aljabar</div>
-                        <div class="text-sm text-gray-600">File diunggah: 25 November 2025</div>
-                    </div>
-                </div>
-                <div class="flex items-start p-3 hover:bg-green-50 rounded-lg transition duration-200 transform hover:scale-[1.02] transition-transform">
-                    <div class="p-2 bg-green-100 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <div class="font-medium text-gray-900">Fisika - Gerak Lurus</div>
-                        <div class="text-sm text-gray-600">Soal dikerjakan: 24 November 2025</div>
-                    </div>
-                </div>
-                <div class="flex items-start p-3 hover:bg-yellow-50 rounded-lg transition duration-200 transform hover:scale-[1.02] transition-transform">
-                    <div class="p-2 bg-yellow-100 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <div class="font-medium text-gray-900">Kimia - Struktur Atom</div>
-                        <div class="text-sm text-gray-600">File diunggah: 23 November 2025</div>
-                    </div>
-                </div>
+                <?php endif; ?>
             </div>
         </div>
 

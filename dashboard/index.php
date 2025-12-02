@@ -42,7 +42,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
                     <i class="mr-2">✏️</i> Latihan Soal
                 </a>
                 <a href="?page=analisis_materi" class="block py-3 px-6 text-gray-700 hover:bg-blue-50 hover:text-blue-600 <?= $page === 'analisis_materi' ? 'bg-blue-100 text-blue-600 border-r-2 border-blue-600' : '' ?>">
-                    <i class="mr-2">📚</i> Penjabaran Materi
+                    <i class="mr-2">📚</i> Materi Pelajaran
                 </a>
                 <a href="?page=chat" class="block py-3 px-6 text-gray-700 hover:bg-blue-50 hover:text-blue-600 <?= $page === 'chat' ? 'bg-blue-100 text-blue-600 border-r-2 border-blue-600' : '' ?>">
                     <i class="mr-2">💬</i> Tanya Sinar
@@ -92,6 +92,18 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
                     break;
                 case 'analisis_materi':
                     include 'pages/analisis_materi.php';
+                    break;
+                case 'matematika_kelas11':
+                    include 'pages/matematika_kelas11.php';
+                    break;
+                case 'fisika_kelas11':
+                    include 'pages/fisika_kelas11.php';
+                    break;
+                case 'biologi_kelas11':
+                    include 'pages/biologi_kelas11.php';
+                    break;
+                case 'kimia_kelas11':
+                    include 'pages/kimia_kelas11.php';
                     break;
                 case 'chat':
                     include 'pages/chat.php';
