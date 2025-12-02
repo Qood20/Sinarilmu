@@ -176,40 +176,69 @@ try {
         <?php if (!empty($questions)): ?>
             <div class="space-y-6">
                 <?php
-                // Kelompokkan soal berdasarkan topik
+                // Ambil informasi file untuk setiap analisis agar bisa menampilkan nama file
+                $analisis_info = [];
+                foreach ($questions as $question) {
+                    if (!isset($analisis_info[$question['analisis_id']])) {
+                        // Ambil nama file dari upload_files berdasarkan analisis
+                        try {
+                            $fileStmt = $pdo->prepare("
+                                SELECT u.original_name, a.ringkasan
+                                FROM analisis_ai a
+                                JOIN upload_files u ON a.file_id = u.id
+                                WHERE a.id = ?
+                            ");
+                            $fileStmt->execute([$question['analisis_id']]);
+                            $fileInfo = $fileStmt->fetch();
+
+                            $analisis_info[$question['analisis_id']] = $fileInfo ?: ['original_name' => 'File Tidak Dikenal', 'ringkasan' => ''];
+                        } catch (Exception $e) {
+                            $analisis_info[$question['analisis_id']] = ['original_name' => 'File Tidak Dikenal', 'ringkasan' => ''];
+                            error_log("Error getting file info: " . $e->getMessage());
+                        }
+                    }
+                }
+
+                // Kelompokkan soal berdasarkan analisis_id (satu file = satu grup)
                 $grouped_questions = [];
                 foreach ($questions as $question) {
-                    $topik = $question['topik_terkait'] ?? 'Topik Tidak Diketahui';
-                    if (!isset($grouped_questions[$topik])) {
-                        $grouped_questions[$topik] = [];
+                    $analisis_id = $question['analisis_id'];
+                    if (!isset($grouped_questions[$analisis_id])) {
+                        $grouped_questions[$analisis_id] = [];
                     }
-                    $grouped_questions[$topik][] = $question;
+                    $grouped_questions[$analisis_id][] = $question;
                 }
                 ?>
 
-                <?php foreach ($grouped_questions as $topik => $soal_per_topik): ?>
+                <?php foreach ($grouped_questions as $analisis_id => $soal_per_analisis): ?>
                     <div class="border-2 border-gray-200 rounded-xl p-6 mb-6 hover:border-blue-300 transition-all duration-300 shadow-sm hover:shadow-md">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
                             <div class="flex-1">
                                 <div class="flex items-center mb-2">
-                                    <h3 class="text-xl font-bold text-gray-800"><?php echo escape($topik); ?></h3>
-                                    <?php if ($soal_per_topik[0]['tingkat_kesulitan'] === 'mudah'): ?>
+                                    <h3 class="text-xl font-bold text-gray-800"><?php echo escape($analisis_info[$analisis_id]['original_name']); ?></h3>
+                                    <?php if ($soal_per_analisis[0]['tingkat_kesulitan'] === 'mudah'): ?>
                                         <span class="ml-3 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">Mudah</span>
-                                    <?php elseif ($soal_per_topik[0]['tingkat_kesulitan'] === 'sedang'): ?>
+                                    <?php elseif ($soal_per_analisis[0]['tingkat_kesulitan'] === 'sedang'): ?>
                                         <span class="ml-3 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">Sedang</span>
                                     <?php else: ?>
                                         <span class="ml-3 px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Sulit</span>
                                     <?php endif; ?>
                                 </div>
+                                <?php
+                                // Ambil jumlah soal yang sebenarnya dari database untuk analisis ini
+                                $countStmt = $pdo->prepare("SELECT COUNT(*) FROM bank_soal_ai WHERE analisis_id = ?");
+                                $countStmt->execute([$analisis_id]);
+                                $actual_question_count = $countStmt->fetchColumn();
+                                ?>
                                 <p class="text-gray-600">
-                                    <span class="font-semibold"><?php echo count($soal_per_topik); ?></span> soal tersedia •
+                                    <span class="font-semibold"><?php echo $actual_question_count; ?></span> soal tersedia •
                                     Rata-rata nilai:
                                     <span class="font-semibold">
                                         <?php
                                         $total_score = 0;
                                         $count_score = 0;
                                         foreach ($exercise_history as $history) {
-                                            foreach ($soal_per_topik as $soal) {
+                                            foreach ($soal_per_analisis as $soal) {
                                                 if ($history['soal_id'] == $soal['id']) {
                                                     $total_score += $history['nilai'];
                                                     $count_score++;
@@ -221,15 +250,22 @@ try {
                                     </span>
                                 </p>
                             </div>
-                            <button onclick="startExercise(<?php echo $soal_per_topik[0]['analisis_id']; ?>, <?php echo count($soal_per_topik); ?>)" class="mt-3 md:mt-0 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg">
-                                <span class="flex items-center justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <div class="flex space-x-3 mt-3 md:mt-0">
+                                <button onclick="startExercise(<?php echo $soal_per_analisis[0]['analisis_id']; ?>, <?php echo count($soal_per_analisis); ?>)" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg flex-1">
+                                    <span class="flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Kerjakan Soal
+                                    </span>
+                                </button>
+                                <button onclick="confirmDelete(<?php echo $soal_per_analisis[0]['analisis_id']; ?>)" class="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                    Kerjakan Soal
-                                </span>
-                            </button>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Pratinjau soal -->
@@ -240,7 +276,23 @@ try {
                                 </svg>
                                 <p class="font-medium text-gray-800">Contoh Soal:</p>
                             </div>
-                            <p class="text-gray-700 mt-1"><?php echo strlen($soal_per_topik[0]['soal']) > 100 ? substr($soal_per_topik[0]['soal'], 0, 100) . '...' : $soal_per_topik[0]['soal']; ?></p>
+                            <?php if ($actual_question_count > 0): ?>
+                                <?php
+                                // Ambil satu contoh soal dari analisis ini untuk ditampilkan
+                                $sampleStmt = $pdo->prepare("SELECT soal FROM bank_soal_ai WHERE analisis_id = ? LIMIT 1");
+                                $sampleStmt->execute([$soal_per_analisis[0]['analisis_id']]);
+                                $sampleQuestion = $sampleStmt->fetch();
+                                ?>
+                                <p class="text-gray-700 mt-1">
+                                    <?php if ($sampleQuestion): ?>
+                                        <?php echo strlen($sampleQuestion['soal']) > 100 ? substr($sampleQuestion['soal'], 0, 100) . '...' : $sampleQuestion['soal']; ?>
+                                    <?php else: ?>
+                                        Soal tidak tersedia
+                                    <?php endif; ?>
+                                </p>
+                            <?php else: ?>
+                                <p class="text-gray-700 mt-1">Belum ada soal tersedia</p>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -330,7 +382,28 @@ try {
 <script>
     // Fungsi untuk memulai latihan soal
     function startExercise(analisisId, totalSoal) {
-        // Redirect ke halaman khusus untuk mengerjakan soal
-        window.location.href = `?page=exercise_detail&analisis_id=\${analisisId}`;
+        // Redirect ke halaman khusus untuk mengerjakan soal (gunakan metode yang kompatibel)
+        var url = '?page=exercise_detail&analisis_id=' + analisisId;
+        window.location.href = url;
+    }
+
+    // Fungsi untuk konfirmasi penghapusan latihan
+    function confirmDelete(analisisId) {
+        if (confirm('Apakah Anda yakin ingin menghapus latihan soal ini? Soal-soal yang terkait akan dihapus, tetapi file dan analisis materi akan tetap tersimpan.')) {
+            // Buat form sementara untuk mengirimkan permintaan hapus
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'delete_exercises.php';
+            form.style.display = 'none';
+
+            var analisisIdInput = document.createElement('input');
+            analisisIdInput.type = 'hidden';
+            analisisIdInput.name = 'analisis_id';
+            analisisIdInput.value = analisisId;
+
+            form.appendChild(analisisIdInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
     }
 </script>

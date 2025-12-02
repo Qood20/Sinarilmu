@@ -198,6 +198,9 @@ if (defined('DEBUG') && DEBUG) {
                 case 'delete_user':
                     include 'process_delete_user.php';
                     break;
+                case 'delete_material':
+                    include 'process_delete_material.php';
+                    break;
                 case 'delete_file':
                     include 'process_delete_file.php';
                     break;

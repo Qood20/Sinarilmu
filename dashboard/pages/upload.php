@@ -89,151 +89,233 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt = $pdo->prepare("UPDATE upload_files SET status = 'processing' WHERE filename = ?");
                         $stmt->execute([$unique_filename]);
 
-                        // Panggil Google AI untuk menganalisis file dalam proses terpisah
+                        // Panggil AI untuk analisis dan pembuatan soal sekaligus
                         try {
                             $aiHandler = new AIHandler();
 
-                            // Buat prompt yang sangat spesifik untuk file ini
-                            $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-                            $prompt = "File: " . $file['name'] . "\nJenis File: " . $extension . "\n\nLakukan analisis mendalam dan komprehensif terhadap ISI SEBENARNYA dari file ini. Fokuskan analisis pada konten AKTUAL dari file ini, bukan informasi umum tentang jenis file. Jelaskan dengan rinci:\n\n1. Topik utama yang dibahas dalam file (berdasarkan isi sebenarnya)\n2. Konsep-konsep penting yang ADA DALAM FILE (jangan asumsikan konsep umum)\n3. Struktur dan organisasi isi file sebagaimana tertulis dalam file\n4. Hubungan antar konsep dalam file berdasarkan konten sebenarnya\n5. Aplikasi atau implementasi dari konsep-konsep tersebut jika disebutkan dalam file\n6. Penjelasan dengan bahasa yang mudah dimengerti dan kontekstual dengan isi file\n\nJika file berisi soal, latihan, atau kuis, IDENTIFIKASI dan JELASKAN soal-soal tersebut serta buatkan penjelasan jawaban berdasarkan isi sebenarnya dari file. Jika file berisi materi pelajaran, buatkan ringkasan dan penjabaran mendalam SESUAI ISI FILE SEBENARNYA. ANALISIS HARUS BERDASARKAN ISI FILE YANG SEBENARNYA, bukan informasi umum.";
+                            // Ekstraksi konten dari file sesuai jenisnya
+                            $fileContent = extractFileContent($upload_path, $file_extension);
 
-                            $aiResponse = $aiHandler->analyzeFile($upload_path, $prompt);
+                            if ($fileContent === false) {
+                                throw new Exception("Tidak dapat mengekstrak konten dari file jenis ini.");
+                            }
 
-                            // Simpan hasil AI ke database jika berhasil
-                            if (!isset($aiResponse['error'])) {
-                                // Ekstrak informasi dari respons AI
+                            // Batasi ukuran konten untuk menghindari batas API
+                            $fileContent = substr($fileContent, 0, 20000); // Batasi hingga 20,000 karakter
+
+                            $aiResponse = $aiHandler->getAnalysisAndExercises($fileContent, $file['name']);
+
+                            if ($aiResponse) {
+                                // 1. Parse respons AI
+                                $analysisText = '';
+                                $questionsJson = '';
+
+                                // Coba beberapa format parsing untuk mendukung variasi output AI
+                                if (preg_match('/---ANALYSIS_START---(.*?)---ANALYSIS_END---/s', $aiResponse, $analysisMatch)) {
+                                    $analysisText = trim($analysisMatch[1]);
+                                } elseif (preg_match('/Ringkasan:.*?Penjabaran Materi:/s', $aiResponse)) {
+                                    // Fallback alternatif jika format pembatas tidak ditemukan
+                                    $analysisText = $aiResponse; // Gunakan seluruh respons jika pola spesifik tidak ditemukan
+                                } else {
+                                    // Jika tidak ada format pembatas, ambil bagian awal sebagai analisis
+                                    $analysisText = $aiResponse;
+                                }
+
+                                if (preg_match('/---QUESTIONS_START---(.*?)---QUESTIONS_END---/s', $aiResponse, $questionsMatch)) {
+                                    $questionsJson = trim($questionsMatch[1]);
+                                } elseif (preg_match('/(\[.*\])/s', $aiResponse, $jsonMatch)) {
+                                    // Mungkin AI mengembalikan JSON di akhir tanpa pembatas
+                                    $questionsJson = trim($jsonMatch[1]);
+                                } else {
+                                    // Jika tetap tidak menemukan format yang dikenal, coba ambil bagian yang mirip JSON
+                                    $potentialJson = $aiResponse;
+                                    // Coba bersihkan teks untuk mendapatkan JSON yang valid
+                                    $jsonStart = strpos($potentialJson, '[');
+                                    $jsonEnd = strrpos($potentialJson, ']');
+                                    if ($jsonStart !== false && $jsonEnd !== false) {
+                                        $questionsJson = substr($potentialJson, $jsonStart, ($jsonEnd - $jsonStart + 1));
+                                    }
+                                }
+
+                                // Parse lebih lanjut untuk ringkasan dan penjabaran
                                 $summary = '';
                                 $detailedExplanation = '';
-
-                                if (isset($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
-                                    $candidate = $aiResponse['candidates'][0];
-                                    if (isset($candidate['content']['parts']) && count($candidate['content']['parts']) > 0) {
-                                        $fullText = '';
-                                        foreach ($candidate['content']['parts'] as $part) {
-                                            if (isset($part['text'])) {
-                                                $fullText .= $part['text'] . ' ';
-                                            }
-                                        }
-
-                                        $fullText = trim($fullText);
-
-                                        // Pisahkan Ringkasan dan Penjabaran Materi jika ada
-                                        if (preg_match('/Ringkasan:\s*(.*?)\n\nPenjabaran Materi:\s*(.*)/s', $fullText, $matches)) {
-                                            $summary = trim($matches[1]);
-                                            $detailedExplanation = trim($matches[2]);
-
-                                            // Pastikan penjabaran tidak sama dengan ringkasan
-                                            if ($detailedExplanation === $summary) {
-                                                $detailedExplanation = "Penjabaran materi ini memberikan analisis lebih mendalam tentang konsep-konsep yang telah disajikan dalam ringkasan. File ini berisi materi pelajaran yang komprehensif dengan struktur pembelajaran yang sistematis. Untuk memahami materi ini secara menyeluruh, disarankan untuk memperhatikan detail-detail penting yang terdapat dalam isi file.";
-                                            }
-                                        } else {
-                                            // Jika tidak terstruktur seperti yang diharapkan, tetap pisahkan konten
-                                            $parts = explode("\n\n", $fullText, 2);
-                                            if (count($parts) === 2) {
-                                                $summary = $parts[0];
-                                                $detailedExplanation = $parts[1];
-                                            } else {
-                                                $summary = substr($fullText, 0, 500) . (strlen($fullText) > 500 ? '...' : '');
-                                                $detailedExplanation = $fullText;
-
-                                                // Jika isi terlalu pendek, buat penjabaran yang berbeda
-                                                if (strlen($fullText) < 200) {
-                                                    $detailedExplanation = "File ini berisi materi pelajaran yang mencakup berbagai konsep penting dalam topik yang dibahas. Isi file disusun secara sistematis untuk membantu pemahaman konsep secara menyeluruh. Dalam file ini, Anda akan menemukan penjelasan tentang konsep-konsep dasar hingga lanjutan yang saling terkait satu sama lain.";
-                                                }
-                                            }
-                                        }
-                                    } elseif (isset($candidate['output'])) {
-                                        // Alternatif struktur respons
-                                        $summary = $candidate['output'];
-                                        $detailedExplanation = "File ini berisi materi pelajaran yang mencakup berbagai konsep penting dalam topik yang dibahas. Isi file disusun secara sistematis untuk membantu pemahaman konsep secara menyeluruh. Dalam file ini, Anda akan menemukan penjelasan tentang konsep-konsep dasar hingga lanjutan yang saling terkait satu sama lain.";
-                                    }
+                                if (preg_match('/Ringkasan:\s*(.*?)\n\nPenjabaran Materi:\s*(.*)/s', $analysisText, $textMatch)) {
+                                    $summary = trim($textMatch[1]);
+                                    $detailedExplanation = trim($textMatch[2]);
                                 } else {
-                                    // Coba struktur respons alternatif
-                                    if (isset($aiResponse['text'])) {
-                                        $responseText = $aiResponse['text'];
-
-                                        // Pisahkan Ringkasan dan Penjabaran Materi jika ada
-                                        if (preg_match('/Ringkasan:\s*(.*?)\n\nPenjabaran Materi:\s*(.*)/s', $responseText, $matches)) {
-                                            $summary = trim($matches[1]);
-                                            $detailedExplanation = trim($matches[2]);
-
-                                            // Pastikan penjabaran tidak sama dengan ringkasan
-                                            if ($detailedExplanation === $summary) {
-                                                $detailedExplanation = "Penjabaran materi ini memberikan analisis lebih mendalam tentang konsep-konsep yang telah disajikan dalam ringkasan. File ini berisi materi pelajaran yang komprehensif dengan struktur pembelajaran yang sistematis. Untuk memahami materi ini secara menyeluruh, disarankan untuk memperhatikan detail-detail penting yang terdapat dalam isi file.";
-                                            }
-                                        } else {
-                                            $summary = substr($responseText, 0, 500) . (strlen($responseText) > 500 ? '...' : '');
-                                            $detailedExplanation = $responseText;
-
-                                            // Jika isi terlalu pendek, buat penjabaran yang berbeda
-                                            if (strlen($responseText) < 200) {
-                                                $detailedExplanation = "File ini berisi materi pelajaran yang mencakup berbagai konsep penting dalam topik yang dibahas. Isi file disusun secara sistematis untuk membantu pemahaman konsep secara menyeluruh. Dalam file ini, Anda akan menemukan penjelasan tentang konsep-konsep dasar hingga lanjutan yang saling terkait satu sama lain.";
-                                            }
-                                        }
+                                    // Coba format alternatif
+                                    if (preg_match('/Ringkasan:\s*(.*?)(?=Penjabaran Materi:|$)/s', $analysisText, $summaryMatch)) {
+                                        $summary = trim($summaryMatch[1]);
+                                    }
+                                    if (preg_match('/Penjabaran Materi:\s*(.*)/s', $analysisText, $detailMatch)) {
+                                        $detailedExplanation = trim($detailMatch[1]);
                                     } else {
-                                        // Jika struktur respons berbeda, gunakan pesan default
-                                        $summary = 'AI tidak dapat menghasilkan ringkasan untuk file ini.';
-                                        $detailedExplanation = 'Penjabaran materi tidak tersedia untuk file ini. Silakan coba upload kembali atau pilih file dengan isi yang lebih jelas.';
+                                        $detailedExplanation = $analysisText; // Fallback
                                     }
                                 }
 
-                                // Simpan hasil analisis ke tabel analisis_ai dengan verifikasi bahwa file_id sesuai
-                                $stmt = $pdo->prepare("
-                                    INSERT INTO analisis_ai (file_id, user_id, ringkasan, penjabaran_materi, topik_terkait, tingkat_kesulitan)
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                ");
-                                $stmt->execute([
-                                    $uploadedFileId, // Ini adalah ID dari file yang sedang diproses
-                                    $_SESSION['user_id'],
-                                    $summary,
-                                    $detailedExplanation ?? $summary, // Jika tidak ada penjabaran terpisah, gunakan summary
-                                    json_encode([]) ?: '[]', // topik_terkait dalam format JSON, jaga-jaga jika json_encode gagal
-                                    'sedang' // tingkat_kesulitan default
-                                ]);
+                                // 2. Cek apakah sudah ada analisis untuk file ini
+                                $existingAnalysisStmt = $pdo->prepare("SELECT id FROM analisis_ai WHERE file_id = ? AND user_id = ?");
+                                $existingAnalysisStmt->execute([$uploadedFileId, $_SESSION['user_id']]);
+                                $existingAnalysis = $existingAnalysisStmt->fetch();
 
-                                // Verifikasi bahwa data benar-benar disimpan untuk file ini
-                                $verificationStmt = $pdo->prepare("
-                                    SELECT id FROM analisis_ai
-                                    WHERE file_id = ? AND user_id = ?
-                                    ORDER BY created_at DESC LIMIT 1
-                                ");
-                                $verificationStmt->execute([$uploadedFileId, $_SESSION['user_id']]);
-                                $verification = $verificationStmt->fetch();
+                                if ($existingAnalysis) {
+                                    // Hapus soal-soal lama yang terkait dengan analisis file ini saja (hanya jika file diupload ulang)
+                                    $deleteQuestionsStmt = $pdo->prepare("DELETE FROM bank_soal_ai WHERE analisis_id = ?");
+                                    $deleteQuestionsStmt->execute([$existingAnalysis['id']]);
 
-                                if (!$verification) {
-                                    error_log("Error: Data AI tidak berhasil disimpan untuk file_id: " . $uploadedFileId);
+                                    // Update analisis yang sudah ada
+                                    $updateStmt = $pdo->prepare("UPDATE analisis_ai SET ringkasan = ?, penjabaran_materi = ? WHERE id = ?");
+                                    $updateStmt->execute([$summary, $detailedExplanation, $existingAnalysis['id']]);
+                                    $analysisId = $existingAnalysis['id'];
                                 } else {
-                                    error_log("Success: Data AI berhasil disimpan untuk file_id: " . $uploadedFileId . ", analysis_id: " . $verification['id']);
+                                    // Jika belum ada analisis sebelumnya, buat yang baru
+                                    $insertStmt = $pdo->prepare("INSERT INTO analisis_ai (file_id, user_id, ringkasan, penjabaran_materi) VALUES (?, ?, ?, ?)");
+                                    $insertStmt->execute([$uploadedFileId, $_SESSION['user_id'], $summary, $detailedExplanation]);
+                                    $analysisId = $pdo->lastInsertId();
                                 }
 
-                                // Update status file menjadi 'completed' - gunakan ID file bukan filename untuk keakuratan
+                                // 3. Simpan soal-soal ke tabel 'bank_soal_ai'
+                                $questions = null;
+
+                                // Bersihkan JSON dari karakter aneh sebelum parsing
+                                $cleanedJson = preg_replace('/[^\x20-\x7E\x{00A0}-\x{D7FF}\x{E000}-\x{FFFD}]+/u', '', $questionsJson);
+
+                                // Coba parsing JSON utuh terlebih dahulu
+                                $questions = json_decode($cleanedJson, true);
+
+                                // Jika parsing gagal, coba ekstrak dan bersihkan JSON
+                                if (json_last_error() !== JSON_ERROR_NONE) {
+                                    // Bersihkan karakter yang sering membuat JSON tidak valid
+                                    $jsonText = $cleanedJson;
+
+                                    // Coba temukan blok JSON antara pembatas
+                                    if (preg_match('/---QUESTIONS_START---\s*(\[.*\])\s*---QUESTIONS_END---/s', $aiResponse, $matches)) {
+                                        $jsonText = trim($matches[1]);
+                                    } else {
+                                        // Jika tidak ada pembatas, coba temukan array JSON
+                                        if (preg_match('/(\[.*\])/s', $cleanedJson, $matches)) {
+                                            $jsonText = trim($matches[1]);
+                                        }
+                                    }
+
+                                    // Bersihkan karakter masalah dalam JSON
+                                    $jsonText = preg_replace('/\\\\/', '', $jsonText);  // Hapus backslash berlebihan
+                                    $jsonText = preg_replace('/,\s*]/', ']', $jsonText); // Hapus koma sebelum kurung siku tutup
+                                    $jsonText = preg_replace('/,\s*}/', '}', $jsonText); // Hapus koma sebelum kurung kurawal tutup
+
+                                    // Coba parsing lagi
+                                    $questions = json_decode($jsonText, true);
+
+                                    if (json_last_error() !== JSON_ERROR_NONE) {
+                                        // Jika parsing tetap gagal, log error dan coba parsing manual
+                                        error_log("JSON parsing failed with error: " . json_last_error_msg() . " - Content: " . $jsonText);
+
+                                        // Alternatif: parsing manual dari format teks ke array
+                                        $questions = [];
+                                        // Kita tidak akan menerapkan parsing manual di sini karena terlalu kompleks
+                                        // tapi kita bisa log untuk debugging
+                                    }
+                                }
+
+                                $questionsAdded = 0;
+                                if ($analysisId && !empty($questions) && json_last_error() === JSON_ERROR_NONE && is_array($questions)) {
+                                    $questionStmt = $pdo->prepare("INSERT INTO bank_soal_ai (analisis_id, user_id, soal, pilihan_a, pilihan_b, pilihan_c, pilihan_d, kunci_jawaban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                                    foreach ($questions as $q) {
+                                        // Pastikan ini adalah array soal yang valid
+                                        if (!is_array($q)) continue;
+
+                                        // Tangani berbagai format kunci yang mungkin dikembalikan oleh AI
+                                        $soal = $q['soal'] ?? $q['question'] ?? ($q['Question'] ?? 'Soal tidak tersedia');
+                                        $pilihan_key = null;
+
+                                        // Cek beberapa kemungkinan kunci untuk pilihan
+                                        if (isset($q['pilihan']) && is_array($q['pilihan'])) {
+                                            $pilihan_key = 'pilihan';
+                                        } elseif (isset($q['options']) && is_array($q['options'])) {
+                                            $pilihan_key = 'options';
+                                        } elseif (isset($q['Choices']) && is_array($q['Choices'])) {
+                                            $pilihan_key = 'Choices';
+                                        } elseif (isset($q['Pilihan']) && is_array($q['Pilihan'])) {
+                                            $pilihan_key = 'Pilihan';
+                                        }
+
+                                        if ($pilihan_key) {
+                                            $pilihan = $q[$pilihan_key];
+                                            $pilihan_a = $pilihan['a'] ?? $pilihan['A'] ?? $pilihan[0] ?? '';
+                                            $pilihan_b = $pilihan['b'] ?? $pilihan['B'] ?? $pilihan[1] ?? '';
+                                            $pilihan_c = $pilihan['c'] ?? $pilihan['C'] ?? $pilihan[2] ?? '';
+                                            $pilihan_d = $pilihan['d'] ?? $pilihan['D'] ?? $pilihan[3] ?? '';
+                                        } else {
+                                            // Fallback jika format pilihan berbeda atau tidak terstruktur
+                                            $pilihan_a = '';
+                                            $pilihan_b = '';
+                                            $pilihan_c = '';
+                                            $pilihan_d = '';
+
+                                            // Cek apakah pilihan langsung di root array
+                                            if (isset($q['a']) || isset($q['A'])) {
+                                                $pilihan_a = $q['a'] ?? $q['A'] ?? '';
+                                            }
+                                            if (isset($q['b']) || isset($q['B'])) {
+                                                $pilihan_b = $q['b'] ?? $q['B'] ?? '';
+                                            }
+                                            if (isset($q['c']) || isset($q['C'])) {
+                                                $pilihan_c = $q['c'] ?? $q['C'] ?? '';
+                                            }
+                                            if (isset($q['d']) || isset($q['D'])) {
+                                                $pilihan_d = $q['d'] ?? $q['D'] ?? '';
+                                            }
+                                        }
+
+                                        $kunci_jawaban = $q['kunci_jawaban'] ?? $q['correct_answer'] ?? $q['kunci'] ?? $q['answer'] ?? '';
+
+                                        // Hanya simpan jika soalnya valid (memiliki isi)
+                                        if (trim($soal) !== '' && strlen(trim($soal)) > 5) {
+                                            $questionStmt->execute([
+                                                $analysisId,
+                                                $_SESSION['user_id'],
+                                                $soal,
+                                                $pilihan_a,
+                                                $pilihan_b,
+                                                $pilihan_c,
+                                                $pilihan_d,
+                                                $kunci_jawaban
+                                            ]);
+                                            $questionsAdded++;
+                                        }
+                                    }
+                                } else {
+                                    $errorMsg = json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : 'No questions found or not an array';
+                                    error_log("JSON parsing failed or no questions found. Error: " . $errorMsg . " - Raw content: " . $questionsJson);
+                                    error_log("Cleaned JSON: " . $cleanedJson);
+                                }
+
+                                // Jika tidak ada soal yang ditambahkan tapi analisis berhasil, tetap update status
+                                if ($analysisId && $questionsAdded === 0) {
+                                    error_log("No questions were saved for analysis_id: " . $analysisId . ", but summary was saved. Raw question content: " . $questionsJson);
+                                    error_log("Parsed questions array was empty or invalid: " . (is_array($questions) ? 'true' : 'false') . ", count: " . count((array)$questions));
+                                }
+
+                                // 4. Update status file menjadi 'completed'
                                 $stmt = $pdo->prepare("UPDATE upload_files SET status = 'completed' WHERE id = ?");
                                 $stmt->execute([$uploadedFileId]);
 
-                                // Logging untuk verifikasi bahwa file ini benar-benar selesai diproses
-                                error_log("File completed processing successfully - File ID: " . $uploadedFileId . " - Filename: " . $unique_filename);
-
-                                $success = "File berhasil diunggah dan telah diproses oleh AI.";
+                                $success = "File berhasil diunggah, dianalisis, dan soal latihan telah dibuat.";
                             } else {
-                                // Jika AI gagal, update status menjadi error
-                                $stmt = $pdo->prepare("UPDATE upload_files SET status = 'ai_error' WHERE filename = ?");
-                                $stmt->execute([$unique_filename]);
-
-                                $errorMessage = $aiResponse['error'] ?? 'Terjadi kesalahan tidak diketahui';
-                                $success = "File berhasil diunggah tetapi terjadi masalah saat diproses oleh AI: " . $errorMessage;
-
-                                // Log error untuk debugging
-                                error_log("AI Processing Error for file " . $unique_filename . ": " . $errorMessage);
+                                // Jika AI gagal, update status menjadi 'failed'
+                                $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                $stmt->execute([$uploadedFileId]);
+                                $error = "File berhasil diunggah tetapi gagal diproses oleh AI.";
                             }
                         } catch (Exception $e) {
-                            // Jika ada error saat memanggil AI, update status menjadi error
-                            $stmt = $pdo->prepare("UPDATE upload_files SET status = 'ai_error' WHERE filename = ?");
-                            $stmt->execute([$unique_filename]);
-
-                            $success = "File berhasil diunggah tetapi terjadi error saat diproses oleh AI: " . $e->getMessage();
-
-                            // Log error untuk debugging
-                            error_log("AI Processing Exception for file " . $unique_filename . ": " . $e->getMessage());
+                            // Jika ada error saat memanggil AI, update status
+                            $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                            $stmt->execute([$uploadedFileId]);
+                            $error = "Terjadi error saat memproses file dengan AI: " . $e->getMessage();
+                            error_log("AI Processing Exception for file ID " . $uploadedFileId . ": " . $e->getMessage());
                         }
 
                         // Catat aktivitas upload
@@ -647,4 +729,236 @@ function formatFileSize($size) {
     }
     return round($size, 1) . ' ' . $units[$i];
 }
+
+// Fungsi untuk ekstraksi konten dari berbagai jenis file
+function extractFileContent($filepath, $extension) {
+    $extension = strtolower($extension);
+
+    switch ($extension) {
+        case 'txt':
+            $content = file_get_contents($filepath);
+            return $content !== false ? $content : '';
+
+        case 'pdf':
+            $content = extractTextFromPDF($filepath);
+            return $content !== false ? $content : '';
+
+        case 'docx':
+            $content = extractTextFromDOCX($filepath);
+            return $content !== false ? $content : '';
+
+        case 'doc':
+            $content = extractTextFromDOC($filepath);
+            return $content !== false ? $content : '';
+
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+        case 'gif':
+            // Untuk file gambar, kembalikan placeholder karena kita tidak memiliki OCR
+            $content = extractTextFromImage($filepath);
+            return $content !== false ? $content : "File gambar: " . basename($filepath);
+
+        case 'html':
+        case 'htm':
+            $content = file_get_contents($filepath);
+            if ($content !== false) {
+                // Hapus tag HTML, hanya ambil teks
+                $content = strip_tags($content);
+                return $content;
+            }
+            return '';
+
+        default:
+            // Untuk jenis file lainnya, coba baca sebagai teks biasa
+            $content = file_get_contents($filepath);
+            if ($content !== false) {
+                // Bersihkan karakter non-printable
+                $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', ' ', $content);
+                return $content;
+            }
+            return '';
+    }
+}
+
+// Fungsi untuk ekstraksi teks dari PDF
+function extractTextFromPDF($filepath) {
+    if (!file_exists($filepath)) {
+        return false;
+    }
+
+    // Coba beberapa metode untuk mengekstrak teks dari PDF
+    // Metode 1: Gunakan perintah pdftotext jika tersedia
+    if (function_exists('exec')) {
+        $output = '';
+        $return_code = 0;
+        $command = 'pdftotext ' . escapeshellarg($filepath) . ' - 2>&1';
+        exec($command, $output, $return_code);
+
+        if ($return_code === 0) {
+            $text = implode("\n", $output);
+            return $text;
+        }
+    }
+
+    // Jika pdftotext tidak tersedia atau gagal, coba baca sebagai teks biasa
+    $content = file_get_contents($filepath);
+    if ($content === false) {
+        return false;
+    }
+
+    // Coba ekstrak teks dari PDF secara manual - solusi fallback sederhana
+    // Cari teks antara kurung, biasanya isi teks di PDF
+    $text = '';
+    $lines = explode("\n", $content);
+    $in_text_section = false;
+
+    foreach ($lines as $line) {
+        // Coba pola teks umum di PDF
+        if (preg_match_all('/\(([^()]+)\)/', $line, $matches)) {
+            foreach ($matches[1] as $match) {
+                // Hanya tambahkan jika teks terlihat valid (bukan hanya angka atau simbol)
+                if (strlen($match) > 2 && str_word_count($match) > 0) {
+                    $text .= $match . ' ';
+                }
+            }
+        }
+        // Coba pola lain seperti teks dalam kurung siku
+        elseif (preg_match_all('/\[([^\[\]]+)\]/', $line, $matches)) {
+            foreach ($matches[1] as $match) {
+                if (strlen($match) > 2 && str_word_count($match) > 0) {
+                    $text .= $match . ' ';
+                }
+            }
+        }
+    }
+
+    return trim($text);
+}
+
+// Fungsi untuk ekstraksi teks dari DOCX
+function extractTextFromDOCX($filepath) {
+    if (!file_exists($filepath)) {
+        return false;
+    }
+
+    // DOCX adalah arsip ZIP, jadi kita perlu membukanya
+    // Karena ZipArchive mungkin tidak tersedia, kita coba dengan memeriksa apakah fungsi tersedia
+    if (class_exists('ZipArchive')) {
+        try {
+            // Buka file DOCX sebagai arsip ZIP
+            $zip = new ZipArchive();
+            if ($zip->open($filepath) === true) {
+                // Ambil konten dari file 'word/document.xml'
+                $content = $zip->getFromName('word/document.xml');
+                $zip->close();
+
+                if ($content !== false) {
+                    // Decode XML entities dan bersihkan markup
+                    $content = htmlspecialchars_decode($content, ENT_QUOTES);
+                    // Hapus tag XML
+                    $content = strip_tags($content);
+                    // Normalisasi whitespace
+                    $content = preg_replace('/\s+/', ' ', $content);
+                    return trim($content);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("DOCX extraction error with ZipArchive: " . $e->getMessage());
+        }
+    } else {
+        // Jika kelas ZipArchive tidak tersedia, coba alternatif
+        // Gunakan perintah sistem jika tersedia
+        if (function_exists('exec')) {
+            $output = '';
+            $return_code = 0;
+            $temp_dir = sys_get_temp_dir();
+            $temp_file = tempnam($temp_dir, 'docx_');
+            $temp_extract_dir = $temp_dir . '/docx_' . uniqid();
+
+            // Buat direktori sementara
+            mkdir($temp_extract_dir, 0755, true);
+
+            // Ekstrak file DOCX (yang merupakan ZIP) ke direktori sementara
+            $command = 'unzip -j ' . escapeshellarg($filepath) . ' word/document.xml -d ' . escapeshellarg($temp_extract_dir) . ' 2>&1';
+            exec($command, $output, $return_code);
+
+            if ($return_code === 0) {
+                $xml_path = $temp_extract_dir . '/word/document.xml';
+                if (file_exists($xml_path)) {
+                    $content = file_get_contents($xml_path);
+                    // Bersihkan hasil
+                    $content = htmlspecialchars_decode($content, ENT_QUOTES);
+                    $content = strip_tags($content);
+                    $content = preg_replace('/\s+/', ' ', $content);
+
+                    // Hapus file sementara
+                    unlink($xml_path);
+                    rmdir($temp_extract_dir);
+
+                    return trim($content);
+                }
+            } else {
+                // Jika unzip tidak berhasil, hapus direktori sementara
+                if (is_dir($temp_extract_dir)) {
+                    array_map('unlink', glob("$temp_extract_dir/*"));
+                    rmdir($temp_extract_dir);
+                }
+            }
+        }
+    }
+
+    // Jika semua metode gagal, kembalikan false
+    return false;
+}
+
+// Fungsi untuk ekstraksi teks dari DOC (implementasi sederhana)
+function extractTextFromDOC($filepath) {
+    if (!file_exists($filepath)) {
+        return false;
+    }
+
+    $content = file_get_contents($filepath);
+    if ($content === false) {
+        return false;
+    }
+
+    // Ambil sebagian kecil dari file untuk menghindari memori berlebihan
+    $content = substr($content, 0, 1024 * 1024); // Batasi hingga 1MB
+
+    // Bersihkan karakter non-printable tetapi pertahankan karakter teks umum
+    $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $content);
+    // Untuk file DOC, bisa mengandung banyak karakter biner, jadi fokus pada teks yang terbaca
+    $cleaned = '';
+    $len = strlen($content);
+
+    for ($i = 0; $i < $len; $i++) {
+        $char = $content[$i];
+        $ord = ord($char);
+
+        // Hanya simpan karakter yang terlihat seperti teks
+        if (($ord >= 32 && $ord <= 126) || $ord == 9 || $ord == 10 || $ord == 13 || ($ord >= 160 && $ord <= 255)) {
+            $cleaned .= $char;
+        }
+    }
+
+    // Hapus sekuens karakter aneh dan normalisasi whitespace
+    $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $cleaned);
+    $cleaned = preg_replace('/\s+/', ' ', $cleaned);
+
+    return trim($cleaned);
+}
+
+// Fungsi untuk ekstraksi teks dari gambar (placeholder - dalam implementasi nyata, gunakan OCR)
+function extractTextFromImage($filepath) {
+    // Karena kita tidak punya layanan OCR, kembalikan deskripsi file
+    // Dalam implementasi nyata, Anda mungkin ingin mengirim file ke layanan OCR
+    // atau menggunakan library seperti Tesseract OCR
+    $imageInfo = getimagesize($filepath);
+    $width = $imageInfo[0] ?? 0;
+    $height = $imageInfo[1] ?? 0;
+
+    return "Gambar (" . basename($filepath) . ") - Dimensi: {$width}x{$height}px. Konten teks tidak dapat diekstrak tanpa OCR. File ini berisi gambar yang mungkin berisi teks atau diagram.";
+}
+
 ?>

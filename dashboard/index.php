@@ -18,6 +18,9 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
 // Debug: Tampilkan page yang diminta
 if (defined('DEBUG') && DEBUG) {
     error_log("Requested page: " . $page);
+} else {
+    // Tambahkan logging tambahan untuk debugging
+    error_log("Requested page: " . $page . " at " . date('Y-m-d H:i:s'));
 }
 ?>
 
@@ -94,6 +97,9 @@ if (defined('DEBUG') && DEBUG) {
                     break;
                 case 'exercises':
                     include 'pages/exercises.php';
+                    break;
+                case 'exercise_detail':
+                    include 'pages/exercise_detail.php';
                     break;
                 case 'analisis_materi':
                     include 'pages/analisis_materi.php';

@@ -1,153 +1,124 @@
 <?php
-// includes/generate_exercises.php - Endpoint untuk menghasilkan soal dari materi file
+// includes/generate_exercises.php - Endpoint untuk membuat soal latihan dari materi AI
 
-// Cek apakah sesi sudah aktif sebelum memulai sesi baru
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
+header('Content-Type: application/json');
 
-// Cek apakah pengguna sudah login
+require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/includes/ai_handler.php';
+require_once dirname(__DIR__) . '/includes/functions.php';
+
+$response = ['success' => false, 'message' => 'Terjadi kesalahan yang tidak diketahui.', 'content' => ''];
+
 if (!isset($_SESSION['user_id'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Akses ditolak. Silakan login terlebih dahulu.']);
+    $response['message'] = 'Pengguna tidak terautentikasi.';
+    echo json_encode($response);
     exit;
 }
 
-require_once 'functions.php';
-require_once 'ai_handler.php'; // Membutuhkan handler AI untuk membuat soal
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['file_id'])) {
+    $fileId = filter_var($_POST['file_id'], FILTER_VALIDATE_INT);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $file_id = isset($_POST['file_id']) ? (int)$_POST['file_id'] : 0;
-    
-    if ($file_id <= 0) {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'ID file tidak valid.']);
+    if (!$fileId) {
+        $response['message'] = 'ID file tidak valid.';
+        echo json_encode($response);
         exit;
     }
-    
+
+    global $pdo;
+
     try {
-        global $pdo;
-        
-        // Dapatkan data file dan hasil AI
-        $stmt = $pdo->prepare("
-            SELECT a.ringkasan, a.penjabaran_materi, f.original_name
-            FROM analisis_ai a
-            JOIN upload_files f ON a.file_id = f.id
-            WHERE a.file_id = ? AND f.user_id = ?
-        ");
-        $stmt->execute([$file_id, $_SESSION['user_id']]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($result) {
-            // Gunakan AI handler yang telah kita buat untuk membuat soal
-            $aiHandler = new AIHandler();
-            
-            // Buat permintaan untuk membuat soal
-            $prompt = "Berdasarkan materi berikut: " . $result['ringkasan'] . 
-                     "\n\n" . $result['penjabaran_materi'] . 
-                     "\n\nBuatkan 5 soal pilihan ganda (multiple choice) dengan 4 pilihan jawaban (A, B, C, D) dan sertakan kunci jawaban serta pembahasan singkat untuk setiap soal.";
-            
-            $aiResponse = $aiHandler->analyzeText($prompt);
-            
-            if (!isset($aiResponse['error'])) {
-                $soalText = '';
+        // 1. Ambil hasil analisis AI dari database
+        $stmt = $pdo->prepare("SELECT ringkasan, penjabaran_materi FROM analisis_ai WHERE file_id = ? AND user_id = ?");
+        $stmt->execute([$fileId, $_SESSION['user_id']]);
+        $analysis = $stmt->fetch();
 
-                if (isset($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
-                    $candidate = $aiResponse['candidates'][0];
-                    if (isset($candidate['content']['parts']) && count($candidate['content']['parts']) > 0) {
-                        $fullText = '';
-                        foreach ($candidate['content']['parts'] as $part) {
-                            if (isset($part['text'])) {
-                                $fullText .= $part['text'] . ' ';
-                            }
-                        }
-                        $soalText = trim($fullText);
-                    } elseif (isset($candidate['output'])) {
-                        // Alternatif struktur respons
-                        $soalText = $candidate['output'];
-                    }
-                } else {
-                    // Coba struktur respons alternatif
-                    if (isset($aiResponse['text'])) {
-                        $soalText = $aiResponse['text'];
-                    }
-                }
-
-                // Simpan soal ke database bank_soal_ai - hubungkan ke file spesifik
-                if (!empty($soalText)) {
-                    // Ambil informasi file untuk referensi
-                    $fileStmt = $pdo->prepare("
-                        SELECT uf.original_name, uf.description
-                        FROM upload_files uf
-                        LEFT JOIN analisis_ai aa ON uf.id = aa.file_id
-                        WHERE uf.id = ?
-                    ");
-                    $fileStmt->execute([$file_id]);
-                    $fileInfo = $fileStmt->fetch();
-
-                    $fileName = $fileInfo['original_name'] ?? 'File Tidak Dikenal';
-
-                    // Simpan soal ke database dengan referensi ke file spesifik
-                    $stmt = $pdo->prepare("
-                        INSERT INTO bank_soal_ai (file_id, user_id, soal, topik_terkait, tingkat_kesulitan, created_at)
-                        VALUES (?, ?, ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([
-                        $file_id, // file_id - ini memastikan soal terkait dengan file yang benar
-                        $_SESSION['user_id'],
-                        $soalText,
-                        $fileName, // topik_terkait - gunakan nama file sebagai referensi topik
-                        'sedang' // tingkat_kesulitan default
-                    ]);
-
-                    // Logging untuk verifikasi bahwa soal disimpan untuk file yang benar
-                    error_log("Soal berhasil dibuat dan disimpan untuk file_id: " . $file_id . " - Nama File: " . $fileName);
-                }
-
-                // Format hasil menjadi HTML yang bisa ditampilkan
-                $content = '<div class="prose max-w-none">';
-                $content .= '<h4 class="text-lg font-semibold text-gray-800 mb-2 flex items-center">';
-                $content .= '<svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">';
-                $content .= '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>';
-                $content .= '</svg>';
-                $content .= 'Soal Latihan dari: ' . escape($result['original_name']);
-                $content .= '</h4>';
-                $content .= '<div class="bg-purple-50 p-4 rounded-lg border border-purple-200 whitespace-pre-line">';
-                $content .= nl2br(escape($soalText));
-                $content .= '</div>';
-                $content .= '<div class="mt-4 text-sm text-gray-600">Soal ini telah dibuat secara otomatis oleh AI berdasarkan materi yang Anda unggah.</div>';
-
-                // Tambahkan tombol untuk melihat di halaman latihan soal
-                $content .= '<div class="mt-4 text-center">';
-                $content .= '<a href="?page=exercises" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">';
-                $content .= 'Lihat Semua Latihan Soal';
-                $content .= '</a>';
-                $content .= '</div>';
-
-                $content .= '</div>';
-
-                header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'content' => $content]);
-            } else {
-                // Jika AI gagal membuat soal, berikan pesan default
-                $content = '<div class="text-center py-4">';
-                $content .= '<p class="text-red-600 mb-2">Gagal membuat soal dari materi ini.</p>';
-                $content .= '<p class="text-gray-600">Mohon coba lagi nanti atau upload file berbeda yang memiliki konten yang lebih jelas.</p>';
-                $content .= '</div>';
-                
-                header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'content' => $content, 'message' => 'Gagal membuat soal dari materi ini.']);
-            }
-        } else {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Data materi tidak ditemukan untuk membuat soal.']);
+        if (!$analysis) {
+            $response['message'] = 'Analisis AI untuk file ini tidak ditemukan.';
+            echo json_encode($response);
+            exit;
         }
+
+        $materialContent = $analysis['penjabaran_materi'] ?: $analysis['ringkasan'];
+
+        if (empty($materialContent)) {
+            $response['message'] = 'Konten materi untuk pembuatan soal tidak ditemukan.';
+            echo json_encode($response);
+            exit;
+        }
+
+        // 2. Panggil AIHandler untuk membuat soal
+        $aiHandler = new AIHandler();
+        $exercisesJson = $aiHandler->generateExercises($materialContent);
+
+        // 3. Parse respons JSON dari AI
+        $exercises = json_decode($exercisesJson, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("JSON Decode Error in generate_exercises.php: " . json_last_error_msg() . " - Response: " . $exercisesJson);
+            $response['message'] = 'Gagal mengurai respons soal dari AI. Format tidak valid.';
+            echo json_encode($response);
+            exit;
+        }
+
+        if (empty($exercises) || !is_array($exercises)) {
+            $response['message'] = 'AI tidak menghasilkan soal latihan.';
+            echo json_encode($response);
+            exit;
+        }
+
+        // 4. Simpan soal ke database
+        // Pertama, hapus soal lama jika ada untuk analisis ini
+        $stmt = $pdo->prepare("DELETE FROM latihan_soal WHERE analysis_id = (SELECT id FROM analisis_ai WHERE file_id = ? AND user_id = ?)");
+        $stmt->execute([$fileId, $_SESSION['user_id']]);
+
+        $analysisIdStmt = $pdo->prepare("SELECT id FROM analisis_ai WHERE file_id = ? AND user_id = ?");
+        $analysisIdStmt->execute([$fileId, $_SESSION['user_id']]);
+        $analysisIdResult = $analysisIdStmt->fetch();
+        $analysisId = $analysisIdResult['id'];
+
+        $insertStmt = $pdo->prepare("INSERT INTO latihan_soal (analysis_id, user_id, question_text, options_json, correct_answer) VALUES (?, ?, ?, ?, ?)");
+        foreach ($exercises as $exercise) {
+            if (isset($exercise['question']) && isset($exercise['options']) && is_array($exercise['options']) && isset($exercise['correct_answer'])) {
+                $insertStmt->execute([
+                    $analysisId,
+                    $_SESSION['user_id'],
+                    $exercise['question'],
+                    json_encode($exercise['options']),
+                    $exercise['correct_answer']
+                ]);
+            }
+        }
+
+        // 5. Format soal untuk ditampilkan di frontend
+        $htmlContent = '<div class="space-y-6">';
+        $questionNumber = 1;
+        foreach ($exercises as $exercise) {
+            if (isset($exercise['question']) && isset($exercise['options']) && is_array($exercise['options']) && isset($exercise['correct_answer'])) {
+                $htmlContent .= '<div class="bg-white p-4 rounded-lg shadow">';
+                $htmlContent .= '<p class="font-semibold text-lg mb-2">Soal ' . $questionNumber++ . ': ' . escape($exercise['question']) . '</p>';
+                $htmlContent .= '<ul class="list-disc list-inside ml-4 space-y-1">';
+                foreach ($exercise['options'] as $option) {
+                    $htmlContent .= '<li>' . escape($option) . '</li>';
+                }
+                $htmlContent .= '</ul>';
+                $htmlContent .= '<p class="mt-2 text-green-600 font-medium">Jawaban: ' . escape($exercise['correct_answer']) . '</p>';
+                $htmlContent .= '</div>';
+            }
+        }
+        $htmlContent .= '</div>';
+
+        $response['success'] = true;
+        $response['message'] = 'Soal latihan berhasil dibuat dan disimpan.';
+        $response['content'] = $htmlContent;
+
     } catch (Exception $e) {
         error_log("Error generating exercises: " . $e->getMessage());
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Terjadi kesalahan saat membuat soal.']);
+        $response['message'] = 'Terjadi kesalahan saat membuat soal latihan: ' . $e->getMessage();
     }
 } else {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Metode request tidak valid.']);
+    $response['message'] = 'Permintaan tidak valid.';
 }
+
+echo json_encode($response);
+?>

@@ -2,6 +2,7 @@
 // includes/functions.php - Fungsi-fungsi umum untuk aplikasi
 
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/config/config.php';
 
 /**
  * Fungsi untuk mengamankan input dari serangan XSS
