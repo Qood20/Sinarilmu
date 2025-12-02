@@ -115,6 +115,25 @@ CREATE TABLE log_aktivitas (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Tabel materi_pelajaran: menyimpan materi pelajaran yang diunggah oleh admin
+CREATE TABLE materi_pelajaran (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    judul VARCHAR(255) NOT NULL,
+    deskripsi TEXT,
+    kelas ENUM('10', '11', '12') NOT NULL,
+    mata_pelajaran ENUM('matematika', 'fisika', 'kimia', 'biologi', 'bahasa_indonesia', 'bahasa_inggris', 'sejarah', 'geografi', 'ekonomi', 'sosiologi', 'lainnya') NOT NULL,
+    sub_topik VARCHAR(255),
+    file_path VARCHAR(500) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    file_size INT,
+    file_type VARCHAR(50),
+    created_by INT NOT NULL,
+    status ENUM('aktif', 'nonaktif') DEFAULT 'aktif',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Membuat indeks untuk optimasi query
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
@@ -126,6 +145,9 @@ CREATE INDEX idx_hasil_soal_user_user_id ON hasil_soal_user(user_id);
 CREATE INDEX idx_chat_ai_user_id ON chat_ai(user_id);
 CREATE INDEX idx_notifikasi_user_id ON notifikasi(user_id);
 CREATE INDEX idx_log_aktivitas_user_id ON log_aktivitas(user_id);
+CREATE INDEX idx_materi_pelajaran_kelas ON materi_pelajaran(kelas);
+CREATE INDEX idx_materi_pelajaran_mata_pelajaran ON materi_pelajaran(mata_pelajaran);
+CREATE INDEX idx_materi_pelajaran_created_by ON materi_pelajaran(created_by);
 
 -- Membuat user admin default
 INSERT INTO users (full_name, email, username, password, role) VALUES 

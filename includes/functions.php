@@ -181,3 +181,41 @@ function log_login_activity($user_id, $success = true) {
     $action = $success ? 'Login Berhasil' : 'Login Gagal';
     log_activity($user_id, $action, 'Percobaan login ' . ($success ? 'berhasil' : 'gagal'));
 }
+
+/**
+ * Fungsi untuk format ukuran file
+ */
+function format_file_size($bytes) {
+    if ($bytes === 0) return '0 Bytes';
+    $k = 1024;
+    $sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    $i = floor(log($bytes, $k));
+    return round($bytes / pow($k, $i), 2) . ' ' . $sizes[$i];
+}
+
+/**
+ * Fungsi untuk membersihkan nama file dari karakter emoji
+ */
+function clean_filename_from_emojis($filename) {
+    // Remove emojis and other non-ASCII characters while preserving the file extension
+    $path_info = pathinfo($filename);
+    $basename = $path_info['filename'];
+    $extension = isset($path_info['extension']) ? '.' . $path_info['extension'] : '';
+
+    // Regular expression to remove emoji and other non-ASCII characters
+    $cleaned_basename = preg_replace('/[\x{1F600}-\x{1F64F}]|[\x{1F300}-\x{1F5FF}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E0}-\x{1F1FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F900}-\x{1F9FF}]|[\x{1F018}-\x{1F270}]/u', '', $basename);
+
+    // Replace any remaining non-ASCII characters with underscore
+    $cleaned_basename = preg_replace('/[^\x20-\x7E]/u', '_', $cleaned_basename);
+
+    // Clean any multiple underscores
+    $cleaned_basename = preg_replace('/_+/', '_', $cleaned_basename);
+    $cleaned_basename = trim($cleaned_basename, '_');
+
+    // If cleaned name is empty, use a default name
+    if (empty($cleaned_basename)) {
+        $cleaned_basename = 'file_' . time();
+    }
+
+    return $cleaned_basename . $extension;
+}

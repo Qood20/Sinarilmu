@@ -1,5 +1,5 @@
 <?php
-// dashboard/pages/kimia_kelas11.php - Halaman materi kimia kelas 11
+// dashboard/pages/kimia_kelas10.php - Halaman materi kimia kelas 10
 
 // Cek apakah sesi sudah aktif sebelum memulai sesi baru
 if (session_status() == PHP_SESSION_NONE) {
@@ -26,8 +26,8 @@ require_once '../includes/functions.php';
             </a>
         </div>
         
-        <h2 class="text-3xl font-bold text-gray-800 mb-2">Kimia Kelas 11</h2>
-        <p class="text-gray-600 mb-8">Materi pelajaran kimia untuk kelas 11 SMA</p>
+        <h2 class="text-3xl font-bold text-gray-800 mb-2">Kimia Kelas 10</h2>
+        <p class="text-gray-600 mb-8">Materi pelajaran kimia untuk kelas 10 SMA</p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Materi 1 -->
@@ -37,8 +37,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Konfigurasi Elektron</h3>
-                <p class="text-gray-600 mb-4">Memahami konfigurasi elektron dan diagram orbital</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Struktur Atom dan Sistem Periodik</h3>
+                <p class="text-gray-600 mb-4">Teori atom, konfigurasi elektron, dan sistem periodik unsur</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,8 +54,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Sistem Periodik Unsur</h3>
-                <p class="text-gray-600 mb-4">Perkembangan sistem periodik dan sifat periodik unsur</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Ikatan Kimia</h3>
+                <p class="text-gray-600 mb-4">Ikatan ion, kovalen, dan logam beserta sifat-sifatnya</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,8 +71,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Ikatan Kimia</h3>
-                <p class="text-gray-600 mb-4">Memahami jenis-jenis ikatan kimia dan bentuk molekul</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Persamaan Reaksi dan Hukum Dasar Kimia</h3>
+                <p class="text-gray-600 mb-4">Penyetaraan reaksi dan hukum kekekalan massa</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -88,8 +88,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Reaksi Redoks</h3>
-                <p class="text-gray-600 mb-4">Penyetaraan reaksi redoks dan penerapannya</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Stoikiometri</h3>
+                <p class="text-gray-600 mb-4">Perhitungan kimia berdasarkan persamaan reaksi</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,8 +105,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Hidrolisis Garam</h3>
-                <p class="text-gray-600 mb-4">Konsep dan perhitungan pH larutan garam</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Larutan Elektrolit dan Non-elektrolit</h3>
+                <p class="text-gray-600 mb-4">Kemampuan larutan menghantarkan listrik</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -122,8 +122,8 @@ require_once '../includes/functions.php';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Buffer</h3>
-                <p class="text-gray-600 mb-4">Larutan penyangga dan perhitungannya</p>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Reaksi Asam Basa</h3>
+                <p class="text-gray-600 mb-4">Konsep asam basa Arrhenius, Bronsted-Lowry, dan pH</p>
                 <a href="#" class="text-purple-600 hover:text-purple-800 font-medium inline-flex items-center">
                     Pelajari Sekarang
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,8 +141,8 @@ require_once '../includes/functions.php';
                 SELECT m.*, u.full_name as uploaded_by
                 FROM materi_pelajaran m
                 LEFT JOIN users u ON m.created_by = u.id
-                WHERE m.kelas = '11' AND m.mata_pelajaran = 'kimia' AND m.status = 'aktif'
-                ORDER BY m.sub_topik, m.created_at DESC
+                WHERE m.kelas = '10' AND m.mata_pelajaran = 'kimia' AND m.status = 'aktif'
+                ORDER BY m.created_at DESC
             ");
             $stmt->execute();
             $admin_materials = $stmt->fetchAll();
@@ -161,79 +161,41 @@ require_once '../includes/functions.php';
                 Materi Tambahan dari Admin
             </h3>
 
-            <?php
-            // Group materials by sub_topik
-            $grouped_materials = [];
-            foreach ($admin_materials as $material) {
-                $sub_topik = $material['sub_topik'] ?: 'Umum';
-
-                if (!isset($grouped_materials[$sub_topik])) {
-                    $grouped_materials[$sub_topik] = [];
-                }
-
-                $grouped_materials[$sub_topik][] = $material;
-            }
-            ?>
-
-            <?php foreach ($grouped_materials as $sub_topik => $materials): ?>
-            <?php if (count($materials) > 0): ?>
-            <div class="mb-6">
-                <h4 class="text-lg font-bold text-gray-800 mb-3 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.874-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                    </svg>
-                    <?php if ($sub_topik !== 'Umum'): ?>
-                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                            <?php echo escape($sub_topik); ?>
-                        </span>
-                    <?php else: ?>
-                        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                            Materi Umum
-                        </span>
-                    <?php endif; ?>
-                </h4>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <?php foreach ($materials as $material): ?>
-                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div class="flex items-center">
-                            <div class="bg-purple-100 p-2 rounded-lg mr-3">
-                                <?php if (in_array(strtolower(pathinfo($material['original_name'], PATHINFO_EXTENSION)), ['pdf'])): ?>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                <?php elseif (in_array(strtolower(pathinfo($material['original_name'], PATHINFO_EXTENSION)), ['doc', 'docx'])): ?>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                <?php else: ?>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                <?php endif; ?>
-                            </div>
-                            <div class="flex-1">
-                                <h4 class="font-medium text-gray-800"><?php echo escape($material['judul']); ?></h4>
-                                <p class="text-xs text-gray-600 mt-1"><?php echo format_file_size($material['file_size']); ?> • <?php echo date('d M', strtotime($material['created_at'])); ?></p>
-                            </div>
-                        </div>
-                        <div class="mt-3 flex justify-between items-center">
-                            <a href="<?php echo $material['file_path']; ?>" target="_blank" class="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <?php foreach ($admin_materials as $material): ?>
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center">
+                        <div class="bg-purple-100 p-2 rounded-lg mr-3">
+                            <?php if (in_array(strtolower(pathinfo($material['original_name'], PATHINFO_EXTENSION)), ['pdf'])): ?>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Unduh
-                            </a>
+                            <?php elseif (in_array(strtolower(pathinfo($material['original_name'], PATHINFO_EXTENSION)), ['doc', 'docx'])): ?>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            <?php else: ?>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            <?php endif; ?>
                         </div>
-                        <?php if (!empty($material['deskripsi'])): ?>
-                        <p class="text-xs text-gray-600 mt-2"><?php echo escape(substr($material['deskripsi'], 0, 80)); ?><?php echo strlen($material['deskripsi']) > 80 ? '...' : ''; ?></p>
-                        <?php endif; ?>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-gray-800"><?php echo escape($material['judul']); ?></h4>
+                            <p class="text-xs text-gray-600 mt-1"><?php echo format_file_size($material['file_size']); ?> • <?php echo date('d M', strtotime($material['created_at'])); ?></p>
+                        </div>
                     </div>
-                    <?php endforeach; ?>
+                    <div class="mt-3 flex justify-between items-center">
+                        <a href="<?php echo $material['file_path']; ?>" target="_blank" class="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Unduh
+                        </a>
+                    </div>
                 </div>
+                <?php endforeach; ?>
             </div>
-            <?php endif; ?>
-            <?php endforeach; ?>
         </div>
         <?php endif; ?>
 

@@ -14,6 +14,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 require_once '../includes/functions.php';
 
 $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
+
+// Debug: Tampilkan page yang diminta
+if (defined('DEBUG') && DEBUG) {
+    error_log("Admin requested page: " . $page);
+}
 ?>
 
 <!DOCTYPE html>
@@ -110,6 +115,9 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
                 <a href="?page=exercises" class="flex items-center py-3 px-6 text-gray-300 hover:bg-red-600 hover:text-white transition duration-200 <?= $page === 'exercises' ? 'bg-red-600 text-white border-l-4 border-white' : '' ?>">
                     <i class="fas fa-tasks mr-3"></i> Kelola Soal
                 </a>
+                <a href="?page=material_content" class="flex items-center py-3 px-6 text-gray-300 hover:bg-red-600 hover:text-white transition duration-200 <?= $page === 'material_content' ? 'bg-red-600 text-white border-l-4 border-white' : '' ?>">
+                    <i class="fas fa-book mr-3"></i> Kelola Materi
+                </a>
                 <a href="?page=content" class="flex items-center py-3 px-6 text-gray-300 hover:bg-red-600 hover:text-white transition duration-200 <?= $page === 'content' ? 'bg-red-600 text-white border-l-4 border-white' : '' ?>">
                     <i class="fas fa-edit mr-3"></i> Kelola Konten
                 </a>
@@ -136,6 +144,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
                             case 'users': echo 'Kelola Pengguna'; break;
                             case 'files': echo 'Kelola File'; break;
                             case 'exercises': echo 'Kelola Soal'; break;
+                            case 'material_content': echo 'Kelola Materi'; break;
                             case 'content': echo 'Kelola Konten'; break;
                             default: echo 'Dashboard Admin';
                         }
@@ -170,6 +179,9 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
                     break;
                 case 'content':
                     include 'pages/settings_content.php';
+                    break;
+                case 'material_content':
+                    include 'pages/material_content.php';
                     break;
                 case 'reports':
                     include 'pages/reports.php';

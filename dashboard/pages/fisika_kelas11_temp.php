@@ -31,10 +31,10 @@ require_once '../includes/functions.php';
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Materi 1 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                     </svg>
                 </div>
                 <h3 class="text-xl font-bold text-gray-800 mb-2">Gerak Lurus</h3>
@@ -48,9 +48,9 @@ require_once '../includes/functions.php';
             </div>
 
             <!-- Materi 2 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
@@ -65,9 +65,9 @@ require_once '../includes/functions.php';
             </div>
 
             <!-- Materi 3 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
@@ -82,9 +82,9 @@ require_once '../includes/functions.php';
             </div>
 
             <!-- Materi 4 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
@@ -99,9 +99,9 @@ require_once '../includes/functions.php';
             </div>
 
             <!-- Materi 5 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
@@ -116,9 +116,9 @@ require_once '../includes/functions.php';
             </div>
 
             <!-- Materi 6 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="border border-gray-200 rounded-xl p-6 mb-4">
+                <div class="bg-green-100 text-green-800 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
@@ -166,11 +166,11 @@ require_once '../includes/functions.php';
             $grouped_materials = [];
             foreach ($admin_materials as $material) {
                 $sub_topik = $material['sub_topik'] ?: 'Umum';
-
+                
                 if (!isset($grouped_materials[$sub_topik])) {
                     $grouped_materials[$sub_topik] = [];
                 }
-
+                
                 $grouped_materials[$sub_topik][] = $material;
             }
             ?>
@@ -192,7 +192,7 @@ require_once '../includes/functions.php';
                         </span>
                     <?php endif; ?>
                 </h4>
-
+                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <?php foreach ($materials as $material): ?>
                     <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">

@@ -14,6 +14,11 @@ if (!isset($_SESSION['user_id'])) {
 require_once '../includes/functions.php';
 
 $page = isset($_GET['page']) ? $_GET['page'] : 'home';
+
+// Debug: Tampilkan page yang diminta
+if (defined('DEBUG') && DEBUG) {
+    error_log("Requested page: " . $page);
+}
 ?>
 
 <!DOCTYPE html>
@@ -93,17 +98,53 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
                 case 'analisis_materi':
                     include 'pages/analisis_materi.php';
                     break;
+                case 'matematika_kelas10':
+                case 'materimatpelajaran10':
+                    include 'pages/matematika_kelas10.php';
+                    break;
+                case 'fisika_kelas10':
+                case 'materifisikakelas10':
+                    include 'pages/fisika_kelas10.php';
+                    break;
+                case 'biologi_kelas10':
+                case 'materibiologikelas10':
+                    include 'pages/biologi_kelas10.php';
+                    break;
+                case 'kimia_kelas10':
+                case 'materikimiakelas10':
+                    include 'pages/kimia_kelas10.php';
+                    break;
                 case 'matematika_kelas11':
+                case 'materimatpelajaran11':
                     include 'pages/matematika_kelas11.php';
                     break;
                 case 'fisika_kelas11':
+                case 'materifisikakelas11':
                     include 'pages/fisika_kelas11.php';
                     break;
                 case 'biologi_kelas11':
+                case 'materibiologikelas11':
                     include 'pages/biologi_kelas11.php';
                     break;
                 case 'kimia_kelas11':
+                case 'materikimiakelas11':
                     include 'pages/kimia_kelas11.php';
+                    break;
+                case 'matematika_kelas12':
+                case 'materimatpelajaran12':
+                    include 'pages/matematika_kelas12.php';
+                    break;
+                case 'fisika_kelas12':
+                case 'materifisikakelas12':
+                    include 'pages/fisika_kelas12.php';
+                    break;
+                case 'biologi_kelas12':
+                case 'materibiologikelas12':
+                    include 'pages/biologi_kelas12.php';
+                    break;
+                case 'kimia_kelas12':
+                case 'materikimiakelas12':
+                    include 'pages/kimia_kelas12.php';
                     break;
                 case 'chat':
                     include 'pages/chat.php';
