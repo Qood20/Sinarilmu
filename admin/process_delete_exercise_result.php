@@ -2,7 +2,11 @@
 // admin/process_delete_exercise_result.php - Proses untuk menghapus hasil latihan
 
 ob_start(); // Start output buffering
-session_start();
+
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 require_once '../includes/functions.php';
 

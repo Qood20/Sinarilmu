@@ -2,7 +2,11 @@
 // dashboard/process_chat.php - Proses pengiriman pesan chat AI
 
 ob_start(); // Start output buffering
-session_start();
+
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../?page=login');
@@ -11,50 +15,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once '../includes/functions.php';
-
-// Definisikan fungsi di awal sebelum digunakan
-/**
- * Fungsi sederhana untuk membuat jawaban AI berdasarkan pertanyaan
- */
-function buat_jawaban_ai($pertanyaan) {
-    $pertanyaan = strtolower($pertanyaan);
-
-    // Jawaban berdasarkan kata kunci
-    if (strpos($pertanyaan, 'hai') !== false || strpos($pertanyaan, 'halo') !== false || strpos($pertanyaan, 'hello') !== false) {
-        return "Halo! Saya Sinar, asisten belajarmu. Ada yang bisa saya bantu?";
-    } elseif (strpos($pertanyaan, 'siapa kamu') !== false || strpos($pertanyaan, 'apa itu') !== false) {
-        return "Saya adalah Sinar, asisten belajar berbasis AI yang dirancang untuk membantu Anda memahami materi pelajaran dengan lebih mudah dan cepat.";
-    } elseif (strpos($pertanyaan, 'matematika') !== false || strpos($pertanyaan, 'aljabar') !== false || strpos($pertanyaan, 'fungsi') !== false || strpos($pertanyaan, 'kuadrat') !== false) {
-        return "Topik Matematika adalah salah satu keahlian saya. Saya bisa membantu menjelaskan konsep-konsep seperti persamaan kuadrat, fungsi, aljabar, dan topik matematika lainnya. Mau saya jelaskan lebih lanjut?";
-    } elseif (strpos($pertanyaan, 'fisika') !== false || strpos($pertanyaan, 'newton') !== false || strpos($pertanyaan, 'hukum') !== false) {
-        return "Fisika juga merupakan bidang yang saya kuasai. Saya bisa menjelaskan hukum Newton, gerak lurus, hukum kekekalan energi, dan topik fisika lainnya. Apa yang ingin Anda pelajari?";
-    } elseif (strpos($pertanyaan, 'kimia') !== false || strpos($pertanyaan, 'atom') !== false || strpos($pertanyaan, 'molekul') !== false) {
-        return "Kimia termasuk dalam bidang yang saya pelajari. Saya bisa membantu menjelaskan struktur atom, ikatan kimia, reaksi kimia, dan konsep kimia lainnya. Mau saya jelaskan lebih lanjut?";
-    } elseif (strpos($pertanyaan, 'biologi') !== false || strpos($pertanyaan, 'sel') !== false || strpos($pertanyaan, 'tumbuhan') !== false) {
-        return "Biologi adalah bidang yang menarik! Saya bisa membantu menjelaskan tentang struktur sel, sistem organ, klasifikasi makhluk hidup, dan topik biologi lainnya.";
-    } else {
-        return "Terima kasih atas pertanyaan Anda. Saya akan membantu menjawab sebaik mungkin. Untuk memahami materi secara lebih mendalam, Anda juga bisa mengunggah file materi pelajaran Anda agar saya bisa menganalisis dan memberikan soal latihan yang sesuai.";
-    }
-}
-
-/**
- * Fungsi sederhana untuk mendeteksi topik dari pertanyaan
- */
-function deteksi_topik($pertanyaan) {
-    $pertanyaan = strtolower($pertanyaan);
-
-    if (strpos($pertanyaan, 'matematika') !== false || strpos($pertanyaan, 'aljabar') !== false || strpos($pertanyaan, 'fungsi') !== false || strpos($pertanyaan, 'kuadrat') !== false || strpos($pertanyaan, 'geometri') !== false) {
-        return "Matematika";
-    } elseif (strpos($pertanyaan, 'fisika') !== false || strpos($pertanyaan, 'newton') !== false || strpos($pertanyaan, 'hukum') !== false || strpos($pertanyaan, 'gerak') !== false || strpos($pertanyaan, 'energi') !== false) {
-        return "Fisika";
-    } elseif (strpos($pertanyaan, 'kimia') !== false || strpos($pertanyaan, 'atom') !== false || strpos($pertanyaan, 'molekul') !== false || strpos($pertanyaan, 'reaksi') !== false) {
-        return "Kimia";
-    } elseif (strpos($pertanyaan, 'biologi') !== false || strpos($pertanyaan, 'sel') !== false || strpos($pertanyaan, 'tumbuhan') !== false || strpos($pertanyaan, 'hewan') !== false) {
-        return "Biologi";
-    } else {
-        return "Umum";
-    }
-}
+require_once '../includes/ai_handler.php';
 
 global $pdo;
 
@@ -66,26 +27,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($pesan_pengguna)) {
             $_SESSION['error'] = "Pesan tidak boleh kosong.";
-            header('Location: ?page=chat');
+            header('Location: ../dashboard/?page=chat');
             exit;
         }
 
-        // Buat jawaban AI sederhana berdasarkan isi pertanyaan
-        $pesan_ai = buat_jawaban_ai($pesan_pengguna);
+        try {
+            // Ambil file-file terbaru milik pengguna untuk referensi AI
+            $stmt = $pdo->prepare("
+                SELECT a.ringkasan, a.penjabaran_materi, f.original_name
+                FROM analisis_ai a
+                JOIN upload_files f ON a.file_id = f.id
+                WHERE f.user_id = ?
+                ORDER BY f.created_at DESC
+                LIMIT 5
+            ");
+            $stmt->execute([$_SESSION['user_id']]);
+            $referensi_files = $stmt->fetchAll();
 
-        // Deteksi topik berdasarkan kata kunci
-        $topik_terkait = deteksi_topik($pesan_pengguna);
+            // Bangun konteks dari file yang telah diupload
+            $konteks = "Kamu adalah AI asisten pendidikan bernama Sinar Ilmu. ";
+            $konteks .= "Berikut adalah materi dari file yang telah diupload oleh pengguna:\n\n";
 
-        // Simpan pesan pengguna ke database
-        $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) VALUES (?, ?, ?, ?)");
+            foreach ($referensi_files as $file) {
+                $konteks .= "File: " . $file['original_name'] . "\n";
+                $konteks .= "Ringkasan: " . $file['ringkasan'] . "\n";
+                if (!empty($file['penjabaran_materi'])) {
+                    $konteks .= "Penjabaran: " . $file['penjabaran_materi'] . "\n";
+                }
+                $konteks .= "\n";
+            }
 
-        if ($stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai, $topik_terkait])) {
-            // Catat aktivitas
-            log_activity($_SESSION['user_id'], 'Kirim Chat', 'Mengirim pesan ke chat AI');
+            $konteks .= "Pertanyaan pengguna: " . $pesan_pengguna . "\n";
+            $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas. Jika tidak ada informasi relevan, berikan jawaban berdasarkan pengetahuan umum dan sebutkan bahwa informasi tidak ditemukan di file yang telah diupload.";
 
-            $_SESSION['success'] = "Pesan berhasil dikirim.";
-        } else {
-            $_SESSION['error'] = "Gagal mengirim pesan.";
+            // Gunakan AI handler yang sebenarnya untuk menghasilkan jawaban
+            $aiHandler = new AIHandler();
+            $aiResponse = $aiHandler->analyzeText($konteks);
+
+            if (!isset($aiResponse['error'])) {
+                $pesan_ai = '';
+                if (isset($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
+                    $candidate = $aiResponse['candidates'][0];
+                    if (isset($candidate['content']['parts']) && count($candidate['content']['parts']) > 0) {
+                        $pesan_ai = $candidate['content']['parts'][0]['text'];
+                    } else {
+                        // Coba format alternatif untuk respons AI
+                        if (isset($candidate['output'])) {
+                            $pesan_ai = $candidate['output'];
+                        } else {
+                            $pesan_ai = "Maaf, saya mengalami kesulitan memproses pertanyaan Anda saat ini. Silakan coba lagi.";
+                        }
+                    }
+                } else {
+                    // Coba struktur respons alternatif
+                    if (isset($aiResponse['text'])) {
+                        $pesan_ai = $aiResponse['text'];
+                    } elseif (isset($aiResponse['response']) && isset($aiResponse['response']['text'])) {
+                        $pesan_ai = $aiResponse['response']['text'];
+                    } else {
+                        $pesan_ai = "Terima kasih atas pertanyaan Anda. Saya sedang memprosesnya dan akan memberikan jawaban terbaik.";
+                    }
+                }
+            } else {
+                // Jika AI gagal, kembalikan pesan error
+                $pesan_ai = "Maaf, terjadi kesalahan saat memproses pertanyaan Anda: " . $aiResponse['error'];
+            }
+
+            // Simpan pesan pengguna dan AI ke database
+            $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) VALUES (?, ?, ?, ?)");
+
+            if ($stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai, json_encode([])])) {
+                // Catat aktivitas
+                log_activity($_SESSION['user_id'], 'Kirim Chat', 'Mengirim pesan ke chat AI');
+
+                $_SESSION['success'] = "Pesan berhasil dikirim.";
+            } else {
+                $_SESSION['error'] = "Gagal mengirim pesan.";
+            }
+        } catch (Exception $e) {
+            // Tangani kesalahan sistem
+            error_log("Chat AI Error: " . $e->getMessage());
+            $pesan_ai = "Maaf, terjadi kesalahan sistem saat memproses pertanyaan Anda. Silakan coba lagi.";
+
+            // Tetap simpan percakapan agar pengguna tahu adanya masalah
+            $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai, json_encode([])]);
+
+            $_SESSION['error'] = "Terjadi kesalahan sistem saat mengirim pesan.";
         }
     }
     elseif ($action === 'delete_chat') {

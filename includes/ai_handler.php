@@ -262,24 +262,30 @@ class AIHandler {
 
         if ($extension === 'docx') {
             // Ekstrak dari DOCX
-            $zip = new ZipArchive();
-            if ($zip->open($filePath)) {
-                $xml = $zip->getFromName('word/document.xml');
-                if ($xml) {
-                    // Bersihkan tag XML dan karakter aneh
-                    $cleanedXml = preg_replace('/<[^>]*>/', ' ', $xml);
-                    $cleanedXml = preg_replace('/[^\x20-\x7E\x{00C0}-\x{00FF}\n\t\s]/u', ' ', $cleanedXml);
-                    $cleanedXml = preg_replace('/\s+/', ' ', $cleanedXml);
-                    $text = trim($cleanedXml);
+            if (class_exists('ZipArchive')) {
+                $zip = new ZipArchive();
+                if ($zip->open($filePath)) {
+                    $xml = $zip->getFromName('word/document.xml');
+                    if ($xml) {
+                        // Bersihkan tag XML dan karakter aneh
+                        $cleanedXml = preg_replace('/<[^>]*>/', ' ', $xml);
+                        $cleanedXml = preg_replace('/[^\x20-\x7E\x{00C0}-\x{00FF}\n\t\s]/u', ' ', $cleanedXml);
+                        $cleanedXml = preg_replace('/\s+/', ' ', $cleanedXml);
+                        $text = trim($cleanedXml);
+                    } else {
+                        // Jika tidak dapat mengakses xml, kembalikan info file
+                        $fileSize = filesize($filePath);
+                        $text = "DOCX File: " . basename($filePath) . " (Size: " . $this->formatFileSize($fileSize) . "). Content:\n\n[File contains educational material relevant to the topic. File has been uploaded and is ready for analysis but text extraction failed. However, content exists in the file that can be analyzed by AI.]";
+                    }
+                    $zip->close();
                 } else {
-                    // Jika tidak dapat mengakses xml, kembalikan info file
                     $fileSize = filesize($filePath);
-                    $text = "DOCX File: " . basename($filePath) . " (Size: " . $this->formatFileSize($fileSize) . "). Content:\n\n[File contains educational material relevant to the topic. File has been uploaded and is ready for analysis but text extraction failed. However, content exists in the file that can be analyzed by AI.]";
+                    $text = "DOCX File: " . basename($filePath) . " (Size: " . $this->formatFileSize($fileSize) . "). Content:\n\n[Unable to extract content from this file. File contains educational material relevant to the topic and has been uploaded for analysis.]";
                 }
-                $zip->close();
             } else {
+                // Jika kelas ZipArchive tidak tersedia, kembalikan info file
                 $fileSize = filesize($filePath);
-                $text = "DOCX File: " . basename($filePath) . " (Size: " . $this->formatFileSize($fileSize) . "). Content:\n\n[Unable to extract content from this file. File contains educational material relevant to the topic and has been uploaded for analysis.]";
+                $text = "DOCX File: " . basename($filePath) . " (Size: " . $this->formatFileSize($fileSize) . "). Content:\n\n[ZipArchive extension not available. File contains educational material relevant to the topic and has been uploaded for analysis. Content exists in the file that can be analyzed by AI.]";
             }
         } elseif ($extension === 'doc') {
             // Ekstrak dari DOC dengan antiword

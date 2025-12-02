@@ -118,6 +118,11 @@ function is_admin() {
 function get_all_users() {
     global $pdo;
 
+    if ($pdo === null) {
+        error_log("Database not connected when trying to get all users");
+        return [];
+    }
+
     try {
         $stmt = $pdo->query("SELECT id, full_name, username, email, role, created_at FROM users ORDER BY created_at DESC");
         return $stmt->fetchAll();
@@ -132,6 +137,11 @@ function get_all_users() {
  */
 function create_user($full_name, $email, $username, $password) {
     global $pdo;
+
+    if ($pdo === null) {
+        error_log("Database not connected when trying to create user");
+        return false;
+    }
 
     $encrypted_password = encrypt_password($password);
     $stmt = $pdo->prepare("INSERT INTO users (full_name, email, username, password, role) VALUES (?, ?, ?, ?, 'user')");
@@ -148,6 +158,11 @@ function create_user($full_name, $email, $username, $password) {
  */
 function log_activity($user_id, $action, $description = null) {
     global $pdo;
+
+    if ($pdo === null) {
+        error_log("Database not connected when trying to log activity");
+        return;
+    }
 
     $stmt = $pdo->prepare("INSERT INTO log_aktivitas (user_id, aksi, deskripsi, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([

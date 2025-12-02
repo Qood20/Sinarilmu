@@ -1,7 +1,10 @@
 <?php
 // dashboard/process_profile.php - Proses update profil pengguna
 
-session_start();
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 ob_start(); // Start output buffering
 
 if (!isset($_SESSION['user_id'])) {

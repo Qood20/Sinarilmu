@@ -1,7 +1,10 @@
 <?php
 // includes/generate_exercises.php - Endpoint untuk menghasilkan soal dari materi file
 
-session_start();
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Cek apakah pengguna sudah login
 if (!isset($_SESSION['user_id'])) {

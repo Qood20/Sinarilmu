@@ -2,7 +2,11 @@
 // admin/process_delete_file.php - Proses untuk menghapus file
 
 ob_start(); // Start output buffering
-session_start();
+
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 require_once '../includes/functions.php';
 

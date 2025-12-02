@@ -1,7 +1,10 @@
 <?php
 // dashboard/pages/exercise_detail.php - Halaman mengerjakan soal latihan
 
-session_start();
+// Cek apakah sesi sudah aktif sebelum memulai sesi baru
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Cek apakah pengguna sudah login
 if (!isset($_SESSION['user_id'])) {
