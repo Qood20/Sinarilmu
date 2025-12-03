@@ -22,9 +22,10 @@ define('APP_VERSION', '1.0.0');
 define('BASE_URL', 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']));
 
 // File konfigurasi Anda (misalnya config.php)
-// Pastikan API key ini valid dan aktif
+// Ganti dengan API key OpenRouter yang valid Anda
+// Dapatkan dari: https://openrouter.ai/keys
 define('OPENROUTER_API_KEY',
-    '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');
+    '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');
 define('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1');
 define('OPENROUTER_DEFAULT_MODEL', 'openai/gpt-3.5-turbo');
 define('OPENROUTER_TIMEOUT', 120);

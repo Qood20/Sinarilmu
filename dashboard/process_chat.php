@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $konteks = "Kamu adalah AI asisten pendidikan bernama Sinar Ilmu. ";
             $konteks .= "Berikut adalah materi dari file yang telah diupload oleh pengguna:\n\n";
 
+            $ada_referensi = false;
             foreach ($referensi_files as $file) {
                 $konteks .= "File: " . $file['original_name'] . "\n";
                 $konteks .= "Ringkasan: " . $file['ringkasan'] . "\n";
@@ -65,10 +66,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $konteks .= "Penjabaran: " . $file['penjabaran_materi'] . "\n";
                 }
                 $konteks .= "\n";
+                $ada_referensi = true;
+            }
+
+            if (!$ada_referensi) {
+                $konteks .= "Pengguna belum mengupload file materi apapun.\n\n";
             }
 
             $konteks .= "Pertanyaan pengguna: " . $pesan_pengguna . "\n";
-            $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas. Jika tidak ada informasi relevan, berikan jawaban berdasarkan pengetahuan umum dan sebutkan bahwa informasi tidak ditemukan di file yang telah diupload.";
+            $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas jika relevan. Jika tidak ada informasi relevan atau tidak ada file diupload, berikan jawaban pendidikan yang bermanfaat berdasarkan pengetahuan umum. Berikan jawaban yang lengkap, jelas, dan membantu dalam konteks pembelajaran. Jika kamu memberikan jawaban berdasarkan pengetahuan umum, sebutkan bahwa ini bukan dari file yang diupload.";
 
             // Pastikan koneksi database aman sebelum digunakan
             if ($pdo === null) {
@@ -80,32 +86,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pesan_ai = null;
             $isFallbackUsed = false;
 
-            // Lakukan pengecekan koneksi API terlebih dahulu sebelum mengirim permintaan
-            $apiTestSuccess = false;
             try {
-                // Uji koneksi API sebelum mengakses
-                $apiTest = $aiHandler->testApiConnection();
-                if ($apiTest) {
-                    $apiTestSuccess = true;
-                }
+                // Gunakan fungsi publik yang tersedia untuk mengirim pesan ke AI
+                $pesan_ai = $aiHandler->sendMessage($konteks, null, 3000, 0.3);
             } catch (Exception $e) {
-                error_log("API connection test failed: " . $e->getMessage());
-            }
-
-            if ($apiTestSuccess) {
-                try {
-                    // Gunakan fungsi publik yang tersedia untuk mengirim pesan ke AI
-                    $pesan_ai = $aiHandler->sendMessage($konteks, null, 3000, 0.3);
-                } catch (Exception $e) {
-                    error_log("AI Error during request: " . $e->getMessage());
-                    $pesan_ai = $aiHandler->getFallbackResponse($konteks);
-                    $isFallbackUsed = true;
-                }
-            } else {
-                // Jika tidak bisa terhubung ke API, langsung gunakan fallback
-                $pesan_ai = "Sistem AI sedang tidak dapat diakses saat ini. Silakan coba lagi nanti. Ini adalah pesan informasi sistem.";
+                error_log("AI Error during request: " . $e->getMessage());
+                $pesan_ai = $aiHandler->getFallbackResponse($pesan_pengguna);
                 $isFallbackUsed = true;
-                error_log("Skipping AI request due to connection failure, using fallback response.");
             }
 
             // Pastikan ada pesan yang valid sebelum menyimpan

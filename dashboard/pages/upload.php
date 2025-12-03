@@ -378,35 +378,512 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     ]);
                                 }
                             } else {
-                                // Jika AI gagal, update status menjadi 'failed'
+                                // Jika AI gagal, coba gunakan fallback untuk membuat analisis dari konten file
+                                error_log("AI processing failed for file ID: " . $uploadedFileId . ", using fallback processing");
+
+                                // Ekstrak konten dari file untuk digunakan dalam fallback
+                                $fileContent = extractFileContent($upload_path, $file_extension);
+
+                                if ($fileContent !== false) {
+                                    try {
+                                        // Gunakan fungsi fallback untuk membuat analisis dari konten file
+                                        $aiHandler = new AIHandler();
+                                        $aiResponse = $aiHandler->generateResponseFromContent($fileContent, $file['name']);
+
+                                        if ($aiResponse) {
+                                            // Parse respons fallback
+                                            $analysisText = '';
+                                            $questionsJson = '';
+
+                                            if (preg_match('/---ANALYSIS_START---(.*?)---ANALYSIS_END---/s', $aiResponse, $analysisMatch)) {
+                                                $analysisText = trim($analysisMatch[1]);
+                                            } else {
+                                                $analysisText = $aiResponse;
+                                            }
+
+                                            if (preg_match('/---QUESTIONS_START---(.*?)---QUESTIONS_END---/s', $aiResponse, $questionsMatch)) {
+                                                $questionsJson = trim($questionsMatch[1]);
+                                            }
+
+                                            // Parse lebih lanjut untuk ringkasan dan penjabaran
+                                            $summary = '';
+                                            $detailedExplanation = '';
+                                            if (preg_match('/Ringkasan:\s*(.*?)\n\nPenjabaran Materi:\s*(.*)/s', $analysisText, $textMatch)) {
+                                                $summary = trim($textMatch[1]);
+                                                $detailedExplanation = trim($textMatch[2]);
+                                            } else {
+                                                if (preg_match('/Ringkasan:\s*(.*?)(?=Penjabaran Materi:|---|$)/s', $analysisText, $summaryMatch)) {
+                                                    $summary = trim($summaryMatch[1]);
+                                                }
+                                                if (preg_match('/Penjabaran Materi:\s*(.*?)(?=---|$)/s', $analysisText, $detailMatch)) {
+                                                    $detailedExplanation = trim($detailMatch[1]);
+                                                } else {
+                                                    $detailedExplanation = $analysisText;
+                                                }
+                                            }
+
+                                            // Simpan analisis ke database
+                                            $existingAnalysisStmt = $pdo->prepare("SELECT id FROM analisis_ai WHERE file_id = ? AND user_id = ?");
+                                            $existingAnalysisStmt->execute([$uploadedFileId, $_SESSION['user_id']]);
+                                            $existingAnalysis = $existingAnalysisStmt->fetch();
+
+                                            if ($existingAnalysis) {
+                                                $deleteQuestionsStmt = $pdo->prepare("DELETE FROM bank_soal_ai WHERE analisis_id = ?");
+                                                $deleteQuestionsStmt->execute([$existingAnalysis['id']]);
+
+                                                $updateStmt = $pdo->prepare("UPDATE analisis_ai SET ringkasan = ?, penjabaran_materi = ? WHERE id = ?");
+                                                $updateStmt->execute([$summary, $detailedExplanation, $existingAnalysis['id']]);
+                                                $analysisId = $existingAnalysis['id'];
+                                            } else {
+                                                $insertStmt = $pdo->prepare("INSERT INTO analisis_ai (file_id, user_id, ringkasan, penjabaran_materi) VALUES (?, ?, ?, ?)");
+                                                $insertStmt->execute([$uploadedFileId, $_SESSION['user_id'], $summary, $detailedExplanation]);
+                                                $analysisId = $pdo->lastInsertId();
+                                            }
+
+                                            // Proses soal dari fallback response
+                                            $questionsAdded = 0;
+                                            if (!empty($questionsJson)) {
+                                                $jsonText = preg_replace('/[^\x20-\x7E\x{00A0}-\x{D7FF}\x{E000}-\x{FFFD}\n\r\t]/u', ' ', $questionsJson);
+                                                $jsonText = preg_replace('/\\\\/', '\\', $jsonText);
+                                                $jsonText = preg_replace('/,\s*]/', ']', $jsonText);
+                                                $jsonText = preg_replace('/,\s*}/', '}', $jsonText);
+                                                $jsonText = preg_replace('/,\s*,/', ',', $jsonText);
+                                                $jsonText = trim($jsonText);
+
+                                                $questions = json_decode($jsonText, true);
+
+                                                if (json_last_error() !== JSON_ERROR_NONE) {
+                                                    error_log("JSON parsing failed for fallback: " . $jsonText);
+                                                    $jsonText = preg_replace('/\s+/', ' ', $jsonText);
+                                                    $jsonText = trim($jsonText);
+                                                    $questions = json_decode($jsonText, true);
+                                                }
+
+                                                if (json_last_error() !== JSON_ERROR_NONE) {
+                                                    $cleanJson = $jsonText;
+                                                    if (preg_match('/(\[.*\])/', $cleanJson, $match)) {
+                                                        $cleanJson = $match[1];
+                                                        $questions = json_decode($cleanJson, true);
+                                                    }
+                                                }
+                                            }
+
+                                            if ($analysisId && !empty($questions) && is_array($questions) && json_last_error() === JSON_ERROR_NONE) {
+                                                $questionStmt = $pdo->prepare("INSERT INTO bank_soal_ai (analisis_id, user_id, soal, pilihan_a, pilihan_b, pilihan_c, pilihan_d, kunci_jawaban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                                                foreach ($questions as $q) {
+                                                    if (!is_array($q)) continue;
+
+                                                    $soal = $q['soal'] ?? $q['question'] ?? $q['Question'] ?? ($q[0] ?? (is_array($q) && count($q) > 0 ? $q[array_keys($q)[0]] : 'Soal tidak tersedia'));
+                                                    $pilihan_key = null;
+
+                                                    if (isset($q['pilihan']) && is_array($q['pilihan'])) {
+                                                        $pilihan_key = 'pilihan';
+                                                    } elseif (isset($q['options']) && is_array($q['options'])) {
+                                                        $pilihan_key = 'options';
+                                                    } elseif (isset($q['Choices']) && is_array($q['Choices'])) {
+                                                        $pilihan_key = 'Choices';
+                                                    } elseif (isset($q['Pilihan']) && is_array($q['Pilihan'])) {
+                                                        $pilihan_key = 'Pilihan';
+                                                    } elseif (isset($q['A']) || isset($q['B']) || isset($q['C']) || isset($q['D'])) {
+                                                        $pilihan_key = 'root';
+                                                    }
+
+                                                    if ($pilihan_key && $pilihan_key !== 'root') {
+                                                        $pilihan = $q[$pilihan_key];
+                                                        $pilihan_a = $pilihan['a'] ?? $pilihan['A'] ?? (is_array($pilihan) ? ($pilihan[0] ?? '') : '');
+                                                        $pilihan_b = $pilihan['b'] ?? $pilihan['B'] ?? (is_array($pilihan) ? ($pilihan[1] ?? '') : '');
+                                                        $pilihan_c = $pilihan['c'] ?? $pilihan['C'] ?? (is_array($pilihan) ? ($pilihan[2] ?? '') : '');
+                                                        $pilihan_d = $pilihan['d'] ?? $pilihan['D'] ?? (is_array($pilihan) ? ($pilihan[3] ?? '') : '');
+                                                    } else {
+                                                        $pilihan_a = $q['a'] ?? $q['A'] ?? (is_array($q) && isset($q[1]) ? $q[1] : '');
+                                                        $pilihan_b = $q['b'] ?? $q['B'] ?? (is_array($q) && isset($q[2]) ? $q[2] : '');
+                                                        $pilihan_c = $q['c'] ?? $q['C'] ?? (is_array($q) && isset($q[3]) ? $q[3] : '');
+                                                        $pilihan_d = $q['d'] ?? $q['D'] ?? (is_array($q) && isset($q[4]) ? $q[4] : '');
+                                                    }
+
+                                                    $kunci_jawaban = $q['kunci_jawaban'] ?? $q['correct_answer'] ?? $q['kunci'] ?? $q['answer'] ?? $q['Correct'] ?? (is_array($q) && count($q) > 0 ? array_keys($q)[0] : 'a');
+
+                                                    if (trim($soal) !== '' && strlen(trim($soal)) > 5) {
+                                                        try {
+                                                            $result = $questionStmt->execute([
+                                                                $analysisId,
+                                                                $_SESSION['user_id'],
+                                                                $soal,
+                                                                $pilihan_a,
+                                                                $pilihan_b,
+                                                                $pilihan_c,
+                                                                $pilihan_d,
+                                                                $kunci_jawaban
+                                                            ]);
+                                                            if ($result) {
+                                                                $questionsAdded++;
+                                                            }
+                                                        } catch (Exception $qe) {
+                                                            error_log("Failed to insert question: " . $qe->getMessage());
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                // Jika parsing JSON gagal, coba parsing manual
+                                                if (!empty($questionsJson)) {
+                                                    $manualQuestions = parseQuestionsManually($questionsJson);
+                                                    if (!empty($manualQuestions)) {
+                                                        $questionStmt = $pdo->prepare("INSERT INTO bank_soal_ai (analisis_id, user_id, soal, pilihan_a, pilihan_b, pilihan_c, pilihan_d, kunci_jawaban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                                                        foreach ($manualQuestions as $q) {
+                                                            try {
+                                                                $result = $questionStmt->execute([
+                                                                    $analysisId,
+                                                                    $_SESSION['user_id'],
+                                                                    $q['question'],
+                                                                    $q['a'] ?? '',
+                                                                    $q['b'] ?? '',
+                                                                    $q['c'] ?? '',
+                                                                    $q['d'] ?? '',
+                                                                    $q['answer'] ?? 'a'
+                                                                ]);
+                                                                if ($result) {
+                                                                    $questionsAdded++;
+                                                                }
+                                                            } catch (Exception $qe) {
+                                                                error_log("Failed to insert manual question: " . $qe->getMessage());
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Jika tidak ada soal yang dibuat dari fallback, buat soal dasar
+                                            if ($analysisId && $questionsAdded === 0) {
+                                                try {
+                                                    $basicQuestionsCreated = createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $_SESSION['user_id']);
+                                                    if ($basicQuestionsCreated > 0) {
+                                                        $questionsAdded = $basicQuestionsCreated;
+                                                    }
+                                                } catch (Exception $e) {
+                                                    error_log("Error creating basic questions fallback: " . $e->getMessage());
+                                                }
+                                            }
+
+                                            // Update status file menjadi 'completed'
+                                            $stmt = $pdo->prepare("UPDATE upload_files SET status = 'completed' WHERE id = ?");
+                                            $stmt->execute([$uploadedFileId]);
+
+                                            if ($questionsAdded > 0) {
+                                                $success = "File berhasil diunggah, dianalisis, dan " . $questionsAdded . " soal latihan telah dibuat.";
+                                                $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                                $notifStmt->execute([
+                                                    $_SESSION['user_id'],
+                                                    "Upload Berhasil",
+                                                    "File " . $file['name'] . " berhasil diunggah dan menghasilkan " . $questionsAdded . " soal latihan.",
+                                                    "success"
+                                                ]);
+                                            } else {
+                                                $success = "File berhasil diunggah dan dianalisis, tetapi tidak menghasilkan soal latihan.";
+                                                $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                                $notifStmt->execute([
+                                                    $_SESSION['user_id'],
+                                                    "Upload Sebagian Berhasil",
+                                                    "File " . $file['name'] . " berhasil diunggah dan dianalisis, tetapi tidak menghasilkan soal latihan.",
+                                                    "info"
+                                                ]);
+                                            }
+                                        } else {
+                                            // Jika fallback juga gagal
+                                            $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                            $stmt->execute([$uploadedFileId]);
+                                            $error = "File berhasil diunggah tetapi gagal diproses oleh AI dan sistem fallback.";
+
+                                            $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                            $notifStmt->execute([
+                                                $_SESSION['user_id'],
+                                                "Upload Gagal",
+                                                "File " . $file['name'] . " berhasil diunggah tetapi gagal diproses oleh AI dan sistem fallback.",
+                                                "error"
+                                            ]);
+                                        }
+                                    } catch (Exception $fallbackException) {
+                                        // Jika fallback juga gagal
+                                        $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                        $stmt->execute([$uploadedFileId]);
+                                        $error = "File berhasil diunggah tetapi gagal diproses oleh AI: " . $e->getMessage() . " dan fallback juga gagal: " . $fallbackException->getMessage();
+
+                                        $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                        $notifStmt->execute([
+                                            $_SESSION['user_id'],
+                                            "Upload Gagal",
+                                            "File " . $file['name'] . " berhasil diunggah tetapi gagal diproses oleh AI dan fallback.",
+                                            "error"
+                                        ]);
+                                    }
+                                } else {
+                                    // Jika ekstraksi konten gagal
+                                    $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                    $stmt->execute([$uploadedFileId]);
+                                    $error = "File berhasil diunggah tetapi konten tidak dapat diekstrak.";
+
+                                    $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                    $notifStmt->execute([
+                                        $_SESSION['user_id'],
+                                        "Upload Gagal",
+                                        "File " . $file['name'] . " berhasil diunggah tetapi konten tidak dapat diekstrak.",
+                                        "error"
+                                    ]);
+                                }
+                            }
+                        } catch (Exception $e) {
+                            // Jika ada error saat memproses AI response, coba fallback
+                            error_log("AI Processing Exception for file ID " . $uploadedFileId . ": " . $e->getMessage());
+
+                            // Coba ekstrak konten untuk fallback
+                            $fileContent = extractFileContent($upload_path, $file_extension);
+
+                            if ($fileContent !== false) {
+                                try {
+                                    // Gunakan fungsi fallback untuk membuat analisis dari konten file
+                                    $aiHandler = new AIHandler();
+                                    $aiResponse = $aiHandler->generateResponseFromContent($fileContent, $file['name']);
+
+                                    if ($aiResponse) {
+                                        // Parse respons fallback
+                                        $analysisText = '';
+                                        $questionsJson = '';
+
+                                        if (preg_match('/---ANALYSIS_START---(.*?)---ANALYSIS_END---/s', $aiResponse, $analysisMatch)) {
+                                            $analysisText = trim($analysisMatch[1]);
+                                        } else {
+                                            $analysisText = $aiResponse;
+                                        }
+
+                                        if (preg_match('/---QUESTIONS_START---(.*?)---QUESTIONS_END---/s', $aiResponse, $questionsMatch)) {
+                                            $questionsJson = trim($questionsMatch[1]);
+                                        }
+
+                                        // Parse lebih lanjut untuk ringkasan dan penjabaran
+                                        $summary = '';
+                                        $detailedExplanation = '';
+                                        if (preg_match('/Ringkasan:\s*(.*?)\n\nPenjabaran Materi:\s*(.*)/s', $analysisText, $textMatch)) {
+                                            $summary = trim($textMatch[1]);
+                                            $detailedExplanation = trim($textMatch[2]);
+                                        } else {
+                                            if (preg_match('/Ringkasan:\s*(.*?)(?=Penjabaran Materi:|---|$)/s', $analysisText, $summaryMatch)) {
+                                                $summary = trim($summaryMatch[1]);
+                                            }
+                                            if (preg_match('/Penjabaran Materi:\s*(.*?)(?=---|$)/s', $analysisText, $detailMatch)) {
+                                                $detailedExplanation = trim($detailMatch[1]);
+                                            } else {
+                                                $detailedExplanation = $analysisText;
+                                            }
+                                        }
+
+                                        // Simpan analisis ke database
+                                        $existingAnalysisStmt = $pdo->prepare("SELECT id FROM analisis_ai WHERE file_id = ? AND user_id = ?");
+                                        $existingAnalysisStmt->execute([$uploadedFileId, $_SESSION['user_id']]);
+                                        $existingAnalysis = $existingAnalysisStmt->fetch();
+
+                                        if ($existingAnalysis) {
+                                            $deleteQuestionsStmt = $pdo->prepare("DELETE FROM bank_soal_ai WHERE analisis_id = ?");
+                                            $deleteQuestionsStmt->execute([$existingAnalysis['id']]);
+
+                                            $updateStmt = $pdo->prepare("UPDATE analisis_ai SET ringkasan = ?, penjabaran_materi = ? WHERE id = ?");
+                                            $updateStmt->execute([$summary, $detailedExplanation, $existingAnalysis['id']]);
+                                            $analysisId = $existingAnalysis['id'];
+                                        } else {
+                                            $insertStmt = $pdo->prepare("INSERT INTO analisis_ai (file_id, user_id, ringkasan, penjabaran_materi) VALUES (?, ?, ?, ?)");
+                                            $insertStmt->execute([$uploadedFileId, $_SESSION['user_id'], $summary, $detailedExplanation]);
+                                            $analysisId = $pdo->lastInsertId();
+                                        }
+
+                                        // Proses soal dari fallback response
+                                        $questionsAdded = 0;
+                                        if (!empty($questionsJson)) {
+                                            $jsonText = preg_replace('/[^\x20-\x7E\x{00A0}-\x{D7FF}\x{E000}-\x{FFFD}\n\r\t]/u', ' ', $questionsJson);
+                                            $jsonText = preg_replace('/\\\\/', '\\', $jsonText);
+                                            $jsonText = preg_replace('/,\s*]/', ']', $jsonText);
+                                            $jsonText = preg_replace('/,\s*}/', '}', $jsonText);
+                                            $jsonText = preg_replace('/,\s*,/', ',', $jsonText);
+                                            $jsonText = trim($jsonText);
+
+                                            $questions = json_decode($jsonText, true);
+
+                                            if (json_last_error() !== JSON_ERROR_NONE) {
+                                                error_log("JSON parsing failed for fallback: " . $jsonText);
+                                                $jsonText = preg_replace('/\s+/', ' ', $jsonText);
+                                                $jsonText = trim($jsonText);
+                                                $questions = json_decode($jsonText, true);
+                                            }
+
+                                            if (json_last_error() !== JSON_ERROR_NONE) {
+                                                $cleanJson = $jsonText;
+                                                if (preg_match('/(\[.*\])/', $cleanJson, $match)) {
+                                                    $cleanJson = $match[1];
+                                                    $questions = json_decode($cleanJson, true);
+                                                }
+                                            }
+                                        }
+
+                                        if ($analysisId && !empty($questions) && is_array($questions) && json_last_error() === JSON_ERROR_NONE) {
+                                            $questionStmt = $pdo->prepare("INSERT INTO bank_soal_ai (analisis_id, user_id, soal, pilihan_a, pilihan_b, pilihan_c, pilihan_d, kunci_jawaban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                                            foreach ($questions as $q) {
+                                                if (!is_array($q)) continue;
+
+                                                $soal = $q['soal'] ?? $q['question'] ?? $q['Question'] ?? ($q[0] ?? (is_array($q) && count($q) > 0 ? $q[array_keys($q)[0]] : 'Soal tidak tersedia'));
+                                                $pilihan_key = null;
+
+                                                if (isset($q['pilihan']) && is_array($q['pilihan'])) {
+                                                    $pilihan_key = 'pilihan';
+                                                } elseif (isset($q['options']) && is_array($q['options'])) {
+                                                    $pilihan_key = 'options';
+                                                } elseif (isset($q['Choices']) && is_array($q['Choices'])) {
+                                                    $pilihan_key = 'Choices';
+                                                } elseif (isset($q['Pilihan']) && is_array($q['Pilihan'])) {
+                                                    $pilihan_key = 'Pilihan';
+                                                } elseif (isset($q['A']) || isset($q['B']) || isset($q['C']) || isset($q['D'])) {
+                                                    $pilihan_key = 'root';
+                                                }
+
+                                                if ($pilihan_key && $pilihan_key !== 'root') {
+                                                    $pilihan = $q[$pilihan_key];
+                                                    $pilihan_a = $pilihan['a'] ?? $pilihan['A'] ?? (is_array($pilihan) ? ($pilihan[0] ?? '') : '');
+                                                    $pilihan_b = $pilihan['b'] ?? $pilihan['B'] ?? (is_array($pilihan) ? ($pilihan[1] ?? '') : '');
+                                                    $pilihan_c = $pilihan['c'] ?? $pilihan['C'] ?? (is_array($pilihan) ? ($pilihan[2] ?? '') : '');
+                                                    $pilihan_d = $pilihan['d'] ?? $pilihan['D'] ?? (is_array($pilihan) ? ($pilihan[3] ?? '') : '');
+                                                } else {
+                                                    $pilihan_a = $q['a'] ?? $q['A'] ?? (is_array($q) && isset($q[1]) ? $q[1] : '');
+                                                    $pilihan_b = $q['b'] ?? $q['B'] ?? (is_array($q) && isset($q[2]) ? $q[2] : '');
+                                                    $pilihan_c = $q['c'] ?? $q['C'] ?? (is_array($q) && isset($q[3]) ? $q[3] : '');
+                                                    $pilihan_d = $q['d'] ?? $q['D'] ?? (is_array($q) && isset($q[4]) ? $q[4] : '');
+                                                }
+
+                                                $kunci_jawaban = $q['kunci_jawaban'] ?? $q['correct_answer'] ?? $q['kunci'] ?? $q['answer'] ?? $q['Correct'] ?? (is_array($q) && count($q) > 0 ? array_keys($q)[0] : 'a');
+
+                                                if (trim($soal) !== '' && strlen(trim($soal)) > 5) {
+                                                    try {
+                                                        $result = $questionStmt->execute([
+                                                            $analysisId,
+                                                            $_SESSION['user_id'],
+                                                            $soal,
+                                                            $pilihan_a,
+                                                            $pilihan_b,
+                                                            $pilihan_c,
+                                                            $pilihan_d,
+                                                            $kunci_jawaban
+                                                        ]);
+                                                        if ($result) {
+                                                            $questionsAdded++;
+                                                        }
+                                                    } catch (Exception $qe) {
+                                                        error_log("Failed to insert question: " . $qe->getMessage());
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            // Jika parsing JSON gagal, coba parsing manual
+                                            if (!empty($questionsJson)) {
+                                                $manualQuestions = parseQuestionsManually($questionsJson);
+                                                if (!empty($manualQuestions)) {
+                                                    $questionStmt = $pdo->prepare("INSERT INTO bank_soal_ai (analisis_id, user_id, soal, pilihan_a, pilihan_b, pilihan_c, pilihan_d, kunci_jawaban) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                                                    foreach ($manualQuestions as $q) {
+                                                        try {
+                                                            $result = $questionStmt->execute([
+                                                                $analysisId,
+                                                                $_SESSION['user_id'],
+                                                                $q['question'],
+                                                                $q['a'] ?? '',
+                                                                $q['b'] ?? '',
+                                                                $q['c'] ?? '',
+                                                                $q['d'] ?? '',
+                                                                $q['answer'] ?? 'a'
+                                                            ]);
+                                                            if ($result) {
+                                                                $questionsAdded++;
+                                                            }
+                                                        } catch (Exception $qe) {
+                                                            error_log("Failed to insert manual question: " . $qe->getMessage());
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Jika tidak ada soal yang dibuat dari fallback, buat soal dasar
+                                        if ($analysisId && $questionsAdded === 0) {
+                                            try {
+                                                $basicQuestionsCreated = createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $_SESSION['user_id']);
+                                                if ($basicQuestionsCreated > 0) {
+                                                    $questionsAdded = $basicQuestionsCreated;
+                                                }
+                                            } catch (Exception $e) {
+                                                error_log("Error creating basic questions fallback: " . $e->getMessage());
+                                            }
+                                        }
+
+                                        // Update status file menjadi 'completed'
+                                        $stmt = $pdo->prepare("UPDATE upload_files SET status = 'completed' WHERE id = ?");
+                                        $stmt->execute([$uploadedFileId]);
+
+                                        if ($questionsAdded > 0) {
+                                            $success = "File berhasil diunggah, dianalisis, dan " . $questionsAdded . " soal latihan telah dibuat.";
+                                            $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                            $notifStmt->execute([
+                                                $_SESSION['user_id'],
+                                                "Upload Berhasil",
+                                                "File " . $file['name'] . " berhasil diunggah dan menghasilkan " . $questionsAdded . " soal latihan.",
+                                                "success"
+                                            ]);
+                                        } else {
+                                            $success = "File berhasil diunggah dan dianalisis, tetapi tidak menghasilkan soal latihan.";
+                                            $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                            $notifStmt->execute([
+                                                $_SESSION['user_id'],
+                                                "Upload Sebagian Berhasil",
+                                                "File " . $file['name'] . " berhasil diunggah dan dianalisis, tetapi tidak menghasilkan soal latihan.",
+                                                "info"
+                                            ]);
+                                        }
+                                    } else {
+                                        // Jika fallback juga gagal
+                                        $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                        $stmt->execute([$uploadedFileId]);
+                                        $error = "Terjadi error saat memproses file dengan AI: " . $e->getMessage() . " dan fallback juga gagal.";
+
+                                        $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                        $notifStmt->execute([
+                                            $_SESSION['user_id'],
+                                            "Error Upload",
+                                            "Terjadi error saat memproses file " . $file['name'] . ": " . $e->getMessage() . " dan fallback juga gagal.",
+                                            "error"
+                                        ]);
+                                    }
+                                } catch (Exception $fallbackException) {
+                                    // Jika fallback juga gagal
+                                    $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
+                                    $stmt->execute([$uploadedFileId]);
+                                    $error = "Terjadi error saat memproses file dengan AI: " . $e->getMessage() . " dan fallback juga gagal: " . $fallbackException->getMessage();
+
+                                    $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
+                                    $notifStmt->execute([
+                                        $_SESSION['user_id'],
+                                        "Error Upload",
+                                        "Terjadi error saat memproses file " . $file['name'] . ": " . $e->getMessage() . " dan fallback juga gagal.",
+                                        "error"
+                                    ]);
+                                }
+                            } else {
+                                // Jika ekstraksi konten gagal
                                 $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
                                 $stmt->execute([$uploadedFileId]);
-                                $error = "File berhasil diunggah tetapi gagal diproses oleh AI.";
+                                $error = "Terjadi error saat memproses file dengan AI: " . $e->getMessage() . " dan konten tidak dapat diekstrak untuk fallback.";
 
-                                // Tambahkan notifikasi error
                                 $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
                                 $notifStmt->execute([
                                     $_SESSION['user_id'],
-                                    "Upload Gagal",
-                                    "File " . $file['name'] . " berhasil diunggah tetapi gagal diproses oleh AI.",
+                                    "Error Upload",
+                                    "Terjadi error saat memproses file " . $file['name'] . ": " . $e->getMessage() . " dan konten tidak dapat diekstrak.",
                                     "error"
                                 ]);
                             }
-                        } catch (Exception $e) {
-                            // Jika ada error saat memproses AI response, update status
-                            $stmt = $pdo->prepare("UPDATE upload_files SET status = 'failed' WHERE id = ?");
-                            $stmt->execute([$uploadedFileId]);
-                            $error = "Terjadi error saat memproses file dengan AI: " . $e->getMessage();
-                            error_log("AI Processing Exception for file ID " . $uploadedFileId . ": " . $e->getMessage());
-
-                            // Tambahkan notifikasi error
-                            $notifStmt = $pdo->prepare("INSERT INTO notifikasi (user_id, judul, isi, tipe) VALUES (?, ?, ?, ?)");
-                            $notifStmt->execute([
-                                $_SESSION['user_id'],
-                                "Error Upload",
-                                "Terjadi error saat memproses file " . $file['name'] . ": " . $e->getMessage(),
-                                "error"
-                            ]);
                         }
 
                         // Catat aktivitas upload
@@ -700,8 +1177,8 @@ function parseQuestionsManually($text) {
 function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userId) {
     $questionsCreated = 0;
 
-    // Bersihkan konten dari tag dan karakter aneh
-    $cleanContent = strip_tags($fileContent);
+    // Bersihkan konten dari tag dan karakter aneh menggunakan fungsi yang baru
+    $cleanContent = cleanTextContent(strip_tags($fileContent));
     $cleanContent = html_entity_decode($cleanContent);
     $cleanContent = preg_replace('/\s+/', ' ', $cleanContent); // Normalisasi spasi
 
@@ -709,17 +1186,20 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
     $sentences = preg_split('/[.!?]+/', $cleanContent);
     $sentences = array_filter($sentences, function($sentence) {
         $sentence = trim($sentence);
-        return strlen($sentence) > 25 && 
+        return strlen($sentence) > 25 &&
                !preg_match('/(©|copyright|all rights reserved|halaman|page|gambar|tabel|source|sumber|author|penulis|tahun|publisher)/i', $sentence);
     });
-    
+
     $sentences = array_values($sentences); // Re-index array
 
     // Buat soal dari kalimat-kalimat penting
     $validQuestions = [];
-    
+
     foreach ($sentences as $sentence) {
         $sentence = trim($sentence);
+        // Gunakan fungsi pembersih tambahan
+        $sentence = cleanTextContent($sentence);
+
         if (strlen($sentence) < 30 || strlen($sentence) > 150) continue; // Sesuaikan panjang kalimat
 
         // Identifikasi apakah kalimat mengandung konsep penting untuk dibuat soal
@@ -739,22 +1219,22 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
                 $questionText = 'Apa yang dapat dipelajari dari pernyataan: "' . substr($sentence, 0, 50) . '..."?';
             }
 
-            // Buat pilihan jawaban dari fragmen kalimat
+            // Buat pilihan jawaban dari fragmen kalimat - pastikan bersih
             $words = explode(' ', $sentence);
             $wordCount = count($words);
-            
-            $pilihanA = implode(' ', array_slice($words, 0, min(4, $wordCount))) . '...';
-            $pilihanB = implode(' ', array_slice($words, max(0, $wordCount-4), 4)) . '...';
-            $pilihanC = 'Pilihan terkait: ' . implode(' ', array_slice($words, max(0, intval($wordCount/2)), 4)) . '...';
-            $pilihanD = 'Konsep yang berkaitan dengan: ' . substr($sentence, 0, 30) . '...';
+
+            $pilihanA = cleanTextContent(implode(' ', array_slice($words, 0, min(4, $wordCount)))) . '...';
+            $pilihanB = cleanTextContent(implode(' ', array_slice($words, max(0, $wordCount-4), 4))) . '...';
+            $pilihanC = cleanTextContent('Pilihan terkait: ' . implode(' ', array_slice($words, max(0, intval($wordCount/2)), 4))) . '...';
+            $pilihanD = cleanTextContent('Konsep yang berkaitan dengan: ' . substr($sentence, 0, 30)) . '...';
 
             $validQuestions[] = [
-                'question' => $questionText,
+                'question' => cleanTextContent($questionText),
                 'options' => [
-                    'a' => $pilihanA,
-                    'b' => $pilihanB,
-                    'c' => $pilihanC, 
-                    'd' => $pilihanD
+                    'a' => cleanTextContent($pilihanA),
+                    'b' => cleanTextContent($pilihanB),
+                    'c' => cleanTextContent($pilihanC),
+                    'd' => cleanTextContent($pilihanD)
                 ],
                 'answer' => 'a' // Jawaban default
             ];
@@ -777,7 +1257,7 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
                     $q['question'],
                     $q['options']['a'],
                     $q['options']['b'],
-                    $q['options']['c'], 
+                    $q['options']['c'],
                     $q['options']['d'],
                     $q['answer']
                 ]);
@@ -808,7 +1288,9 @@ function extractFileContent($filepath, $extension) {
                 error_log("Gagal membaca file TXT: " . $filepath);
                 return false;
             }
-            return $content;
+            // Bersihkan konten dari karakter aneh
+            $clean_content = cleanTextContent($content);
+            return $clean_content;
 
         case 'pdf':
             $content = extractTextFromPDF($filepath);
@@ -817,12 +1299,16 @@ function extractFileContent($filepath, $extension) {
                 // Jika ekstraksi PDF gagal, baca sebagai teks biner dan bersihkan
                 $binary_content = file_get_contents($filepath);
                 if ($binary_content !== false) {
-                    $binary_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
-                    return $binary_content;
+                    // Hapus karakter biner dan bersihkan
+                    $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
+                    $clean_content = cleanTextContent($clean_content);
+                    return $clean_content;
                 }
                 return false;
             }
-            return $content;
+            // Bersihkan konten yang diekstrak
+            $clean_content = cleanTextContent($content);
+            return $clean_content;
 
         case 'docx':
             $content = extractTextFromDOCX($filepath);
@@ -831,12 +1317,15 @@ function extractFileContent($filepath, $extension) {
                 // Jika ekstraksi DOCX gagal, baca sebagai teks biner dan bersihkan
                 $binary_content = file_get_contents($filepath);
                 if ($binary_content !== false) {
-                    $binary_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
-                    return $binary_content;
+                    $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
+                    $clean_content = cleanTextContent($clean_content);
+                    return $clean_content;
                 }
                 return false;
             }
-            return $content;
+            // Bersihkan konten yang diekstrak
+            $clean_content = cleanTextContent($content);
+            return $clean_content;
 
         case 'doc':
             $content = extractTextFromDOC($filepath);
@@ -845,12 +1334,15 @@ function extractFileContent($filepath, $extension) {
                 // Jika ekstraksi DOC gagal, baca sebagai teks biner dan bersihkan
                 $binary_content = file_get_contents($filepath);
                 if ($binary_content !== false) {
-                    $binary_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
-                    return $binary_content;
+                    $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
+                    $clean_content = cleanTextContent($clean_content);
+                    return $clean_content;
                 }
                 return false;
             }
-            return $content;
+            // Bersihkan konten yang diekstrak
+            $clean_content = cleanTextContent($content);
+            return $clean_content;
 
         case 'jpg':
         case 'jpeg':
@@ -869,8 +1361,30 @@ function extractFileContent($filepath, $extension) {
                 error_log("Gagal membaca file jenis: " . $extension . " dari: " . $filepath);
                 return false;
             }
-            return $content;
+            // Bersihkan konten dari karakter aneh
+            $clean_content = cleanTextContent($content);
+            return $clean_content;
     }
+}
+
+// Fungsi tambahan untuk membersihkan konten teks
+function cleanTextContent($content) {
+    // Hapus karakter kontrol non-printable
+    $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', ' ', $content);
+
+    // Ganti multiple spaces dengan single space
+    $clean_content = preg_replace('/\s+/', ' ', $clean_content);
+
+    // Hapus karakter aneh tapi biarkan huruf, angka, dan tanda baca dasar
+    $clean_content = preg_replace('/[^\w\s\p{L}\p{N}\p{P}\p{S}().,:;?!-\x{2013}-\x{2014}\x{2018}\x{2019}\x{201C}\x{201D}]/u', ' ', $clean_content);
+
+    // Kembali ke multiple spaces yang normal
+    $clean_content = preg_replace('/\s+/', ' ', $clean_content);
+
+    // Hilangkan spasi di awal dan akhir
+    $clean_content = trim($clean_content);
+
+    return $clean_content;
 }
 
 // Fungsi untuk ekstrak teks dari file PDF

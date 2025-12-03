@@ -152,6 +152,15 @@ if (defined('DEBUG') && DEBUG) {
                 case 'materikimiakelas12':
                     include 'pages/kimia_kelas12.php';
                     break;
+                case 'materi_kelas10':
+                    include 'pages/materi_kelas10.php';
+                    break;
+                case 'materi_kelas11':
+                    include 'pages/materi_kelas11.php';
+                    break;
+                case 'materi_kelas12':
+                    include 'pages/materi_kelas12.php';
+                    break;
                 case 'chat':
                     include 'pages/chat.php';
                     break;
