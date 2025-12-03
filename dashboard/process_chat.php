@@ -16,7 +16,7 @@ if (!isset($_SESSION['user_id'])) {
     ob_end_clean(); // Clean the output buffer
     exit;
 }
-
+//hai
 require_once '../includes/functions.php';
 
 global $pdo;
