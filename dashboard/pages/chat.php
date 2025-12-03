@@ -74,7 +74,7 @@ try {
                         // Tampilkan pesan dalam urutan terbalik (terlama dulu, terbaru terakhir)
                         foreach (array_reverse($all_chats) as $chat) {
                             ?>
-                            <div class="flex justify-between items-start">
+                            <div class="flex justify-between items-start mb-4">
                                 <div class="bg-blue-500 text-white rounded-lg p-3 max-w-xs md:max-w-md">
                                     <p><?php echo escape($chat['pesan_pengguna']); ?></p>
                                 </div>
@@ -89,9 +89,13 @@ try {
                                 </form>
                             </div>
 
-                            <div class="flex justify-start">
+                            <div class="flex justify-start mb-4">
                                 <div class="bg-gray-200 rounded-lg p-3 max-w-xs md:max-w-md">
-                                    <p class="text-gray-800"><?php echo escape($chat['pesan_ai']); ?></p>
+                                    <?php if (!empty($chat['pesan_ai'])): ?>
+                                        <p class="text-gray-800"><?php echo escape($chat['pesan_ai']); ?></p>
+                                    <?php else: ?>
+                                        <p class="text-gray-500 italic">[Balasan AI sedang tidak tersedia]</p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <?php

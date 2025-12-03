@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'send') {
         $pesan_pengguna = trim($_POST['pesan'] ?? '');
+        $pesan_pengguna = htmlspecialchars($pesan_pengguna); // Sanitasi input
 
         if (empty($pesan_pengguna)) {
             $_SESSION['error'] = "Pesan tidak boleh kosong.";
@@ -34,6 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
+            // Validasi input
+            if (empty($pesan_pengguna)) {
+                $_SESSION['error'] = "Pesan tidak boleh kosong.";
+                header('Location: ../dashboard/?page=chat');
+                exit;
+            }
+
             // Ambil file-file terbaru milik pengguna untuk referensi AI
             $stmt = $pdo->prepare("
                 SELECT a.ringkasan, a.penjabaran_materi, f.original_name
@@ -62,31 +70,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $konteks .= "Pertanyaan pengguna: " . $pesan_pengguna . "\n";
             $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas. Jika tidak ada informasi relevan, berikan jawaban berdasarkan pengetahuan umum dan sebutkan bahwa informasi tidak ditemukan di file yang telah diupload.";
 
-            // Gunakan AI handler yang sebenarnya untuk menghasilkan jawaban
+            // Pastikan koneksi database aman sebelum digunakan
+            if ($pdo === null) {
+                throw new Exception("Koneksi database tidak tersedia.");
+            }
+
+            // Gunakan AI handler untuk menghasilkan jawaban
             $aiHandler = new AIHandler();
-            $pesan_ai = $aiHandler->sendMessage($konteks);
+            $pesan_ai = null;
+            $isFallbackUsed = false;
+
+            // Lakukan pengecekan koneksi API terlebih dahulu sebelum mengirim permintaan
+            $apiTestSuccess = false;
+            try {
+                // Uji koneksi API sebelum mengakses
+                $apiTest = $aiHandler->testApiConnection();
+                if ($apiTest) {
+                    $apiTestSuccess = true;
+                }
+            } catch (Exception $e) {
+                error_log("API connection test failed: " . $e->getMessage());
+            }
+
+            if ($apiTestSuccess) {
+                try {
+                    // Gunakan fungsi publik yang tersedia untuk mengirim pesan ke AI
+                    $pesan_ai = $aiHandler->sendMessage($konteks, null, 3000, 0.3);
+                } catch (Exception $e) {
+                    error_log("AI Error during request: " . $e->getMessage());
+                    $pesan_ai = $aiHandler->getFallbackResponse($konteks);
+                    $isFallbackUsed = true;
+                }
+            } else {
+                // Jika tidak bisa terhubung ke API, langsung gunakan fallback
+                $pesan_ai = "Sistem AI sedang tidak dapat diakses saat ini. Silakan coba lagi nanti. Ini adalah pesan informasi sistem.";
+                $isFallbackUsed = true;
+                error_log("Skipping AI request due to connection failure, using fallback response.");
+            }
+
+            // Pastikan ada pesan yang valid sebelum menyimpan
+            if (empty($pesan_ai)) {
+                $pesan_ai = "Saat ini sistem AI sedang tidak dapat diakses. Silakan coba lagi nanti.";
+                $isFallbackUsed = true;
+            }
 
             // Simpan pesan pengguna dan AI ke database
-            $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) VALUES (?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, created_at) VALUES (?, ?, ?, NOW())");
 
-            if ($stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai, json_encode([])])) {
+            if ($stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai])) {
                 // Catat aktivitas
                 log_activity($_SESSION['user_id'], 'Kirim Chat', 'Mengirim pesan ke chat AI');
 
-                $_SESSION['success'] = "Pesan berhasil dikirim.";
+                if ($isFallbackUsed) {
+                    // Tampilkan info khusus jika menggunakan fallback
+                    $_SESSION['info'] = "Pesan Anda telah diterima, tetapi sistem AI sedang tidak dapat diakses. Sistem menampilkan pesan informasi.";
+                } else {
+                    $_SESSION['success'] = "Pesan berhasil dikirim.";
+                }
             } else {
-                $_SESSION['error'] = "Gagal mengirim pesan.";
+                $_SESSION['error'] = "Gagal menyimpan pesan ke database.";
             }
         } catch (Exception $e) {
             // Tangani kesalahan sistem
             error_log("Chat AI Error: " . $e->getMessage());
-            $pesan_ai = "Maaf, terjadi kesalahan sistem saat memproses pertanyaan Anda. Silakan coba lagi.";
 
-            // Tetap simpan percakapan agar pengguna tahu adanya masalah
-            $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai, json_encode([])]);
+            // Buat pesan fallback
+            $pesan_ai_fallback = "Maaf, terjadi kesalahan sistem saat memproses pertanyaan Anda. Silakan coba lagi. Detail: " . $e->getMessage();
 
-            $_SESSION['error'] = "Terjadi kesalahan sistem saat mengirim pesan.";
+            // Simpan percakapan error ke database agar pengguna bisa lihat responsnya
+            try {
+                // Pastikan koneksi database masih aktif sebelum menyimpan
+                if ($pdo !== null) {
+                    $stmt = $pdo->prepare("INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, created_at) VALUES (?, ?, ?, NOW())");
+                    $stmt->execute([$_SESSION['user_id'], $pesan_pengguna, $pesan_ai_fallback]);
+                }
+            } catch (PDOException $db_e) {
+                error_log("Gagal menyimpan pesan error ke database: " . $db_e->getMessage());
+            }
+
+            $_SESSION['error'] = "Terjadi kesalahan sistem saat mengirim pesan. Kami telah menyimpan pesan Anda.";
         }
     }
     elseif ($action === 'delete_chat') {

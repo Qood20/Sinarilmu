@@ -19,6 +19,12 @@ global $pdo;
 
 // Proses pengiriman pesan jika formulir dikirim
 $chat_history = [];
+
+// Validasi koneksi database
+if ($pdo === null) {
+    die("Koneksi database tidak tersedia.");
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
     $pesan_pengguna = trim($_POST['pesan_pengguna']);
     if (!empty($pesan_pengguna)) {
@@ -34,11 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
             ");
             $stmt->execute([$_SESSION['user_id']]);
             $referensi_files = $stmt->fetchAll();
-            
+
             // Bangun konteks dari file yang telah diupload
             $konteks = "Kamu adalah AI asisten pendidikan bernama Sinar Ilmu. ";
             $konteks .= "Berikut adalah materi dari file yang telah diupload oleh pengguna:\n\n";
-            
+
             foreach ($referensi_files as $file) {
                 $konteks .= "File: " . $file['original_name'] . "\n";
                 $konteks .= "Ringkasan: " . $file['ringkasan'] . "\n";
@@ -47,14 +53,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
                 }
                 $konteks .= "\n";
             }
-            
+
             $konteks .= "Pertanyaan pengguna: " . $pesan_pengguna . "\n";
             $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas. Jika tidak ada informasi relevan, berikan jawaban berdasarkan pengetahuan umum dan sebutkan bahwa informasi tidak ditemukan di file yang telah diupload.";
-            
+
             // Gunakan AI untuk menghasilkan jawaban
             $aiHandler = new AIHandler();
-            $aiResponse = $aiHandler->analyzeText($konteks);
-            
+            try {
+                $aiResponse = $aiHandler->analyzeText($konteks);
+            } catch (Exception $e) {
+                // Jika terjadi error otentikasi atau koneksi API, gunakan fallback
+                if (strpos($e->getMessage(), 'HTTP error: 401') !== false ||
+                    strpos($e->getMessage(), '401') !== false ||
+                    strpos($e->getMessage(), 'API') !== false) {
+                    // Buat respons fallback dalam format yang sama seperti respons API normal
+                    $fallbackResponse = $aiHandler->getFallbackResponse($konteks);
+                    $aiResponse = [
+                        'candidates' => [
+                            [
+                                'content' => [
+                                    'parts' => [
+                                        [
+                                            'text' => $fallbackResponse
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ];
+                } else {
+                    // Jika error selain otentikasi API, lemparkan kembali
+                    throw $e;
+                }
+            }
+
             if (!isset($aiResponse['error'])) {
                 $jawaban_ai = '';
                 if (isset($aiResponse['candidates']) && count($aiResponse['candidates']) > 0) {
@@ -63,10 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
                         $jawaban_ai = $candidate['content']['parts'][0]['text'];
                     }
                 }
-                
+
                 // Simpan percakapan ke database
                 $stmt = $pdo->prepare("
-                    INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) 
+                    INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait)
                     VALUES (?, ?, ?, ?)
                 ");
                 $stmt->execute([
@@ -75,13 +107,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
                     $jawaban_ai,
                     json_encode([]) // topik_terkait
                 ]);
-                
+
                 // Ambil riwayat percakapan
                 $stmt = $pdo->prepare("
-                    SELECT pesan_pengguna, pesan_ai, created_at 
-                    FROM chat_ai 
-                    WHERE user_id = ? 
-                    ORDER BY created_at DESC 
+                    SELECT pesan_pengguna, pesan_ai, created_at
+                    FROM chat_ai
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
                     LIMIT 10
                 ");
                 $stmt->execute([$_SESSION['user_id']]);
@@ -89,25 +121,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
             } else {
                 // Jika AI gagal, buat jawaban default
                 $error_msg = $aiResponse['error'];
-                
+
+                // Tangani kesalahan berdasarkan jenisnya
+                if (strpos($error_msg, 'timeout') !== false || strpos($error_msg, 'cURL error') !== false) {
+                    $pesan_ai = "Maaf, koneksi ke server AI sedang bermasalah atau timeout. Silakan coba lagi nanti.";
+                } else {
+                    $pesan_ai = "Maaf, terjadi kesalahan saat memproses pertanyaan Anda: " . htmlspecialchars($error_msg);
+                }
+
                 // Simpan percakapan ke database
                 $stmt = $pdo->prepare("
-                    INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) 
+                    INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait)
                     VALUES (?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $_SESSION['user_id'],
                     $pesan_pengguna,
-                    "Maaf, terjadi kesalahan saat memproses pertanyaan Anda: " . $error_msg,
+                    $pesan_ai,
                     json_encode([])
                 ]);
-                
+
                 // Ambil riwayat percakapan
                 $stmt = $pdo->prepare("
-                    SELECT pesan_pengguna, pesan_ai, created_at 
-                    FROM chat_ai 
-                    WHERE user_id = ? 
-                    ORDER BY created_at DESC 
+                    SELECT pesan_pengguna, pesan_ai, created_at
+                    FROM chat_ai
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
                     LIMIT 10
                 ");
                 $stmt->execute([$_SESSION['user_id']]);
@@ -115,26 +154,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
             }
         } catch (Exception $e) {
             error_log("Chat AI Error: " . $e->getMessage());
-            $error_msg = "Terjadi kesalahan sistem saat memproses pertanyaan Anda.";
-            
+
+            // Tangani kesalahan berdasarkan jenisnya
+            $pesan_error = $e->getMessage();
+            if (strpos($pesan_error, 'timeout') !== false || strpos($pesan_error, 'cURL error') !== false) {
+                $pesan_ai = "Maaf, koneksi ke server AI sedang bermasalah atau timeout. Silakan coba lagi nanti.";
+            } else {
+                $pesan_ai = "Maaf, terjadi kesalahan sistem saat memproses pertanyaan Anda. Silakan coba lagi. (" . htmlspecialchars($pesan_error) . ")";
+            }
+
             // Simpan percakapan error ke database
             $stmt = $pdo->prepare("
-                INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait) 
+                INSERT INTO chat_ai (user_id, pesan_pengguna, pesan_ai, topik_terkait)
                 VALUES (?, ?, ?, ?)
             ");
-            $stmt->execute([
-                $_SESSION['user_id'],
-                $pesan_pengguna,
-                $error_msg,
-                json_encode([])
-            ]);
-            
+            try {
+                $stmt->execute([
+                    $_SESSION['user_id'],
+                    $pesan_pengguna,
+                    $pesan_ai,
+                    json_encode([])
+                ]);
+            } catch (PDOException $db_e) {
+                error_log("Gagal menyimpan pesan error ke database: " . $db_e->getMessage());
+            }
+
             // Ambil riwayat percakapan
             $stmt = $pdo->prepare("
-                SELECT pesan_pengguna, pesan_ai, created_at 
-                FROM chat_ai 
-                WHERE user_id = ? 
-                ORDER BY created_at DESC 
+                SELECT pesan_pengguna, pesan_ai, created_at
+                FROM chat_ai
+                WHERE user_id = ?
+                ORDER BY created_at DESC
                 LIMIT 10
             ");
             $stmt->execute([$_SESSION['user_id']]);
@@ -144,10 +194,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pesan_pengguna'])) {
 } else {
     // Jika bukan POST atau pesan kosong, ambil riwayat
     $stmt = $pdo->prepare("
-        SELECT pesan_pengguna, pesan_ai, created_at 
-        FROM chat_ai 
-        WHERE user_id = ? 
-        ORDER BY created_at DESC 
+        SELECT pesan_pengguna, pesan_ai, created_at
+        FROM chat_ai
+        WHERE user_id = ?
+        ORDER BY created_at DESC
         LIMIT 10
     ");
     $stmt->execute([$_SESSION['user_id']]);

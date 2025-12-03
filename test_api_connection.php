@@ -1,75 +1,50 @@
 <?php
-// test_api_connection.php - File uji koneksi ke API Google AI
+// test_api_connection.php - File untuk mengetes koneksi API
 
-require_once 'config/api_config.php';
+require_once 'config/config.php';
+require_once 'includes/ai_handler.php';
 
-echo "Menguji koneksi ke Google AI API...\n\n";
+header('Content-Type: application/json');
 
-// Cek apakah cURL tersedia
-if (!function_exists('curl_init')) {
-    echo "cURL tidak tersedia di sistem Anda.\n";
-} else {
-    echo "cURL tersedia.\n";
-}
-
-// Cek apakah file_get_contents dengan context tersedia
-if (in_array('http', stream_get_wrappers())) {
-    echo "stream_get_wrappers (http) tersedia.\n";
-} else {
-    echo "stream_get_wrappers (http) tidak tersedia.\n";
-}
-
-// Coba koneksi ke endpoint Google AI
-$testUrl = GOOGLE_AI_BASE_URL . '/gemini-pro:generateContent?key=' . GOOGLE_AI_API_KEY;
-
-$testData = [
-    'contents' => [
-        [
-            'parts' => [
-                [
-                    'text' => 'Halo, ini hanya tes koneksi.'
-                ]
-            ]
-        ]
-    ]
-];
-
-$ch = curl_init();
-
-curl_setopt($ch, CURLOPT_URL, $testUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($testData));
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/json'
-]);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-
-$result = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-
-curl_close($ch);
-
-if ($result === false) {
-    echo "Kesalahan cURL: " . $error . "\n";
-} else {
-    echo "Kode HTTP: " . $httpCode . "\n";
-    $decoded = json_decode($result, true);
+try {
+    if (!defined('OPENROUTER_API_KEY') || empty(OPENROUTER_API_KEY)) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'API key tidak ditemukan atau kosong di konfigurasi'
+        ]);
+        exit;
+    }
     
-    if ($httpCode == 200) {
-        echo "Koneksi berhasil! API merespons dengan benar.\n";
-    } elseif ($httpCode == 400) {
-        echo "Koneksi berhasil, tetapi permintaan tidak valid (mungkin prompt terlalu pendek).\n";
-    } elseif ($httpCode == 403) {
-        echo "API key tidak valid atau tidak diotorisasi.\n";
-        if (isset($decoded['error'])) {
-            echo "Detail error: " . $decoded['error']['message'] . "\n";
-        }
+    // Coba test koneksi ke API
+    $aiHandler = new AIHandler();
+    
+    // Test sederhana untuk melihat apakah API bisa diakses
+    $testPrompt = "Hanya respon dengan 'API berfungsi' jika kamu bisa diakses.";
+    
+    $response = $aiHandler->sendMessage($testPrompt, null, 100, 0.1);
+    
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'API berfungsi dengan baik',
+        'response' => $response
+    ]);
+    
+} catch (Exception $e) {
+    $errorMessage = $e->getMessage();
+    
+    // Cek apakah ini error otentikasi
+    if (strpos($errorMessage, '401') !== false || strpos($errorMessage, 'authentication') !== false || strpos($errorMessage, 'invalid API') !== false) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'API key tidak valid (otentikasi gagal)',
+            'error' => $errorMessage
+        ]);
     } else {
-        echo "Kesalahan: " . $result . "\n";
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan saat mengakses API',
+            'error' => $errorMessage
+        ]);
     }
 }
-
-echo "\nSelesai.\n";
 ?>

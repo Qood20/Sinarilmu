@@ -146,7 +146,7 @@
                 </svg>
             </div>
             <h3 class="text-2xl font-bold text-gray-900 text-center mb-4">Analisis AI</h3>
-            <p class="text-gray-600 text-center">AI akan menganalisis file yang diunggah dan memberikan penjelasan materi secara otomatis.</p>
+            <p class="text-gray-600 text-center">Belajar bersama AI yang siap membimbingmu memahami materi dengan penjelasan yang mudah dimengerti.</p>
         </div>
 
         <div class="bg-gradient-to-br from-purple-50 to-white p-8 rounded-xl shadow-lg border border-purple-100 transform hover:-translate-y-2 transition duration-300">

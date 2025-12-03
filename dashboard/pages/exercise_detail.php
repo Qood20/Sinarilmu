@@ -26,6 +26,24 @@ if ($analisis_id <= 0) {
     exit;
 }
 
+// Cek apakah analisis benar-benar ada dan milik user ini
+try {
+    $checkStmt = $pdo->prepare("SELECT a.id FROM analisis_ai a JOIN upload_files f ON a.file_id = f.id WHERE a.id = ? AND f.user_id = ?");
+    $checkStmt->execute([$analisis_id, $_SESSION['user_id']]);
+    $analisis = $checkStmt->fetch();
+
+    if (!$analisis) {
+        $_SESSION['error'] = "Analisis tidak ditemukan atau bukan milik Anda.";
+        header('Location: ?page=exercises');
+        exit;
+    }
+} catch (Exception $e) {
+    error_log("Error checking analisis ownership: " . $e->getMessage());
+    $_SESSION['error'] = "Terjadi kesalahan saat memverifikasi akses analisis.";
+    header('Location: ?page=exercises');
+    exit;
+}
+
 // Tambahkan penanganan error untuk query database
 try {
     $stmt = $pdo->prepare("
