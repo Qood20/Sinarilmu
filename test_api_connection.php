@@ -1,5 +1,5 @@
 <?php
-// test_api_connection.php - File untuk mengetes koneksi API
+// test_api_connection.php - File untuk menguji koneksi API
 
 require_once 'config/config.php';
 require_once 'includes/ai_handler.php';
@@ -14,37 +14,61 @@ try {
         ]);
         exit;
     }
-    
+
+    echo json_encode([
+        'status' => 'info',
+        'message' => 'API key ditemukan di konfigurasi',
+        'api_key_length' => strlen(OPENROUTER_API_KEY)
+    ]);
+
     // Coba test koneksi ke API
     $aiHandler = new AIHandler();
-    
-    // Test sederhana untuk melihat apakah API bisa diakses
-    $testPrompt = "Hanya respon dengan 'API berfungsi' jika kamu bisa diakses.";
-    
-    $response = $aiHandler->sendMessage($testPrompt, null, 100, 0.1);
-    
-    echo json_encode([
-        'status' => 'success',
-        'message' => 'API berfungsi dengan baik',
-        'response' => $response
-    ]);
-    
-} catch (Exception $e) {
-    $errorMessage = $e->getMessage();
-    
-    // Cek apakah ini error otentikasi
-    if (strpos($errorMessage, '401') !== false || strpos($errorMessage, 'authentication') !== false || strpos($errorMessage, 'invalid API') !== false) {
+
+    // Cek apakah API fungsional
+    $reflection = new ReflectionClass('AIHandler');
+    $method = $reflection->getMethod('testApiConnection');
+    $method->setAccessible(true);
+    $isFunctional = $method->invoke($aiHandler);
+
+    if ($isFunctional) {
         echo json_encode([
-            'status' => 'error',
-            'message' => 'API key tidak valid (otentikasi gagal)',
-            'error' => $errorMessage
+            'status' => 'success',
+            'message' => 'API berfungsi dengan baik',
+            'functional' => true
         ]);
+        
+        // Lakukan uji coba kirim pesan sederhana
+        try {
+            $testPrompt = "Hanya respon dengan 'API berfungsi' jika kamu bisa diakses.";
+            $response = $aiHandler->sendMessage($testPrompt, null, 100, 0.1);
+            
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Uji kirim pesan berhasil',
+                'response_preview' => substr($response, 0, 100),
+                'full_response' => $response
+            ]);
+        } catch (Exception $e) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Uji kirim pesan gagal: ' . $e->getMessage()
+            ]);
+        }
     } else {
         echo json_encode([
             'status' => 'error',
-            'message' => 'Terjadi kesalahan saat mengakses API',
-            'error' => $errorMessage
+            'message' => 'API tidak dapat diakses',
+            'functional' => false
         ]);
     }
+
+} catch (Exception $e) {
+    $errorMessage = $e->getMessage();
+
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Terjadi kesalahan saat menginisialisasi AI Handler',
+        'error' => $errorMessage
+    ]);
 }
 ?>

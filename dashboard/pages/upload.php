@@ -1390,19 +1390,24 @@ function cleanTextContent($content) {
 // Fungsi untuk ekstrak teks dari file PDF
 function extractTextFromPDF($filepath) {
     if (!file_exists($filepath)) {
+        error_log("File PDF tidak ditemukan: " . $filepath);
         return false;
     }
 
-    // Coba beberapa metode
+    // Coba beberapa metode untuk ekstrak teks dari PDF
+    $content = '';
+
+    // Metode 1: Gunakan pdftotext jika tersedia
     if (function_exists('exec')) {
         $output_lines = [];
         $return_code = 0;
+
+        // Coba dengan pdftotext
         $command = 'pdftotext ' . escapeshellarg($filepath) . ' - 2>&1';
         exec($command, $output_lines, $return_code);
 
         if ($return_code === 0) {
             $output = implode("\n", $output_lines);
-            // Pastikan kita mengembalikan konten jika ada
             if (!empty(trim($output))) {
                 return $output;
             }
@@ -1411,20 +1416,102 @@ function extractTextFromPDF($filepath) {
         }
     }
 
-    // Jika metode di atas gagal atau tidak tersedia, baca sebagai biner dan bersihkan karakter non-teks
-    $content = file_get_contents($filepath);
-    if ($content === false) {
+    // Metode 2: Gunakan TCPDF Parser jika tersedia
+    if (class_exists('TCPDF_PARSER')) {
+        try {
+            $pdf_content = file_get_contents($filepath);
+            if ($pdf_content !== false) {
+                $parser = new TCPDF_PARSER($pdf_content);
+                $parsed_data = $parser->getParsedData();
+
+                // Cek apakah kita bisa mengambil teks
+                if (isset($parsed_data[1]) && is_array($parsed_data[1])) {
+                    foreach ($parsed_data[1] as $obj) {
+                        if (isset($obj[1]) && is_string($obj[1])) {
+                            $content .= $obj[1] . ' ';
+                        }
+                    }
+                }
+
+                if (!empty(trim($content))) {
+                    return $content;
+                }
+            }
+        } catch (Exception $e) {
+            error_log("TCPDF Parser failed: " . $e->getMessage());
+        }
+    }
+
+    // Metode 3: Gunakan teknik parsing manual
+    $pdf_content = file_get_contents($filepath);
+    if ($pdf_content === false) {
         return false;
     }
 
-    // Bersihkan karakter non-ASCII dan non-printable
-    $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $content);
-    return $content;
+    // Ekstrak isi PDF dengan regex untuk mencari teks antara kurung kurawal
+    $text = '';
+    $offset = 0;
+    $len = strlen($pdf_content);
+
+    while ($offset < $len) {
+        $pos = strpos($pdf_content, '(', $offset);
+        if ($pos === false) break;
+
+        $pos++; // Lewati karakter '('
+        $start = $pos;
+        $paren_count = 1;
+
+        while ($pos < $len && $paren_count > 0) {
+            if ($pdf_content[$pos] == '(') {
+                $paren_count++;
+            } elseif ($pdf_content[$pos] == ')') {
+                $paren_count--;
+            } elseif ($pdf_content[$pos] == '\\' && $pos + 1 < $len) {
+                // Lewati karakter escape
+                $pos++;
+            }
+            $pos++;
+        }
+
+        if ($paren_count == 0) {
+            $text_content = substr($pdf_content, $start, $pos - $start - 1);
+            // Hilangkan karakter escape
+            $text_content = str_replace(['\\(', '\\)', '\\\\', '\\n', '\\r', '\\t'], ['(', ')', '\\', "\n", "\r", "\t"], $text_content);
+            $text .= $text_content . ' ';
+        }
+
+        $offset = $pos;
+    }
+
+    // Jika tidak dapat ekstrak dengan teknik manual, coba hilangkan header PDF dan ambil teks biasa
+    if (empty(trim($text))) {
+        // Hilangkan header PDF
+        $pdf_content_clean = preg_replace('/%PDF-[\d.]+\s*%', '', $pdf_content);
+        $pdf_content_clean = preg_replace('/^.*?stream\s*/s', '', $pdf_content_clean);
+        $pdf_content_clean = preg_replace('/\s*endstream.*$/s', '', $pdf_content_clean);
+        $pdf_content_clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $pdf_content_clean);
+
+        // Ambil hanya teks yang memiliki makna (huruf dan angka)
+        preg_match_all('/[\w\s\p{L}\p{N}().,:;?!-]{10,}/u', $pdf_content_clean, $matches);
+        $text = implode(' ', $matches[0] ?? []);
+    }
+
+    // Bersihkan hasil akhir
+    $text = preg_replace('/\s+/', ' ', $text);
+    $clean_text = trim($text);
+
+    if (empty($clean_text)) {
+        error_log("Tidak bisa ekstrak teks dari PDF: " . $filepath);
+        return false;
+    }
+
+    return $clean_text;
 }
 
 // Fungsi untuk ekstrak teks dari file DOCX
 function extractTextFromDOCX($filepath) {
     if (!file_exists($filepath)) {
+        error_log("File DOCX tidak ditemukan: " . $filepath);
         return false;
     }
 
@@ -1433,17 +1520,33 @@ function extractTextFromDOCX($filepath) {
         $result = $zip->open($filepath);
 
         if ($result === true) {
-            $content = $zip->getFromName('word/document.xml');
-            $zip->close();
+            $xml_content = $zip->getFromName('word/document.xml');
 
-            if ($content !== false && !empty($content)) {
+            if ($xml_content !== false && !empty($xml_content)) {
+                $zip->close();
+
                 // Decode XML entities dan bersihkan markup
-                $content = htmlspecialchars_decode($content, ENT_QUOTES);
-                $content = strip_tags($content);
+                $xml_content = htmlspecialchars_decode($xml_content, ENT_QUOTES);
+
+                // Hapus tag XML yang tidak diinginkan, tapi jaga struktur paragraf
+                $content = strip_tags($xml_content, '<w:p>'); // Biarkan tag paragraf
+                $content = str_replace(['<w:p>', '</w:p>'], ['<p>', '</p>'], $content);
+
+                // Ganti beberapa format umum dari Word ke teks biasa
+                $content = preg_replace('/<[^>]*>/', ' ', $content); // Hapus semua tag HTML/Word
                 $content = preg_replace('/\s+/', ' ', $content); // Normalisasi spasi
-                return $content;
+
+                $clean_content = trim($content);
+
+                if (empty($clean_content)) {
+                    error_log("Ekstraksi DOCX menghasilkan konten kosong: " . $filepath);
+                    return false;
+                }
+
+                return $clean_content;
             } else {
                 error_log("Tidak dapat mengambil konten dari dokumen DOCX: " . $filepath);
+                $zip->close();
             }
         } else {
             error_log("Gagal membuka file DOCX sebagai arsip ZIP: " . $filepath . ", error code: " . $result);
@@ -1456,7 +1559,15 @@ function extractTextFromDOCX($filepath) {
     $binary_content = file_get_contents($filepath);
     if ($binary_content !== false) {
         $binary_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $binary_content);
-        return $binary_content;
+        $clean_content = preg_replace('/\s+/', ' ', $binary_content);
+
+        // Ambil hanya teks yang memiliki makna (huruf dan angka)
+        preg_match_all('/[\w\s\p{L}\p{N}().,:;?!-]{10,}/u', $clean_content, $matches);
+        $meaningful_text = implode(' ', $matches[0] ?? []);
+
+        if (!empty($meaningful_text)) {
+            return trim($meaningful_text);
+        }
     }
 
     return false;
@@ -1465,19 +1576,47 @@ function extractTextFromDOCX($filepath) {
 // Fungsi untuk ekstrak teks dari file DOC
 function extractTextFromDOC($filepath) {
     if (!file_exists($filepath)) {
+        error_log("File DOC tidak ditemukan: " . $filepath);
         return false;
     }
 
     // Coba beberapa pendekatan untuk ekstrak dari file DOC
     $content = file_get_contents($filepath);
     if ($content !== false) {
-        // Hapus karakter non-printable
-        $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $content);
+        // Hapus karakter non-printable dan non-ASCII
+        $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $content);
 
-        // Pastikan kita punya konten yang berarti
-        $clean_content = trim($content);
-        if (!empty($clean_content) && strlen($clean_content) > 10) {
-            return $content;
+        // Bersihkan konten dari karakter aneh
+        $clean_content = preg_replace('/\s+/', ' ', $clean_content);
+        $clean_content = trim($clean_content);
+
+        // Ambil hanya teks yang memiliki makna (huruf dan angka)
+        preg_match_all('/[\w\s\p{L}\p{N}().,:;?!-]{10,}/u', $clean_content, $matches);
+        $meaningful_text = implode(' ', $matches[0] ?? []);
+
+        if (!empty($meaningful_text) && strlen($meaningful_text) > 10) {
+            return trim($meaningful_text);
+        }
+
+        // Jika pendekatan di atas gagal, coba pendekatan alternatif
+        // Cari teks yang tampak seperti kalimat
+        $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', ' ', $content);
+        $lines = explode("\n", $content);
+        $meaningful_lines = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Cek apakah baris berisi teks bermakna (setidaknya 5 karakter)
+            if (strlen($line) > 5 && preg_match('/[a-zA-Z0-9]/', $line)) {
+                $meaningful_lines[] = $line;
+            }
+        }
+
+        $result = implode(' ', $meaningful_lines);
+        $result = preg_replace('/\s+/', ' ', $result);
+
+        if (!empty(trim($result))) {
+            return trim($result);
         }
     }
 

@@ -39,14 +39,11 @@ $user = get_user_by_id($_SESSION['user_id']);
                 <input type="text" id="username" name="username" value="<?php echo escape($user['username']); ?>" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             
+            <!-- Tombol untuk menuju ke halaman ganti kata sandi -->
             <div>
-                <label for="password" class="block text-sm font-medium text-gray-700">Kata Sandi Baru (kosongkan jika tidak ingin diubah)</label>
-                <input type="password" id="password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-            </div>
-            
-            <div>
-                <label for="confirm_password" class="block text-sm font-medium text-gray-700">Konfirmasi Kata Sandi Baru</label>
-                <input type="password" id="confirm_password" name="confirm_password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <a href="?page=change_password" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Ganti Kata Sandi
+                </a>
             </div>
             
             <div>

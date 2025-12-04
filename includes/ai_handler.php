@@ -12,8 +12,8 @@ class AIHandler {
         }
 
         $this->apiKey = OPENROUTER_API_KEY;
-        $this->baseUrl = OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1';
-        $this->defaultModel = OPENROUTER_DEFAULT_MODEL ?? 'openai/gpt-3.5-turbo';
+        $this->baseUrl = defined('OPENROUTER_BASE_URL') ? OPENROUTER_BASE_URL : 'https://openrouter.ai/api/v1';
+        $this->defaultModel = defined('OPENROUTER_DEFAULT_MODEL') ? OPENROUTER_DEFAULT_MODEL : 'openai/gpt-3.5-turbo';
     }
 
     private function sendRequest($prompt, $model = null, $maxTokens = 2048, $temperature = 0.7) {
