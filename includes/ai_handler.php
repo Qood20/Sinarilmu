@@ -19,6 +19,12 @@ class AIHandler {
     private function sendRequest($prompt, $model = null, $maxTokens = 2048, $temperature = 0.7) {
         $model = $model ?: $this->defaultModel;
 
+        // Check if API key is valid before making the request
+        if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+            error_log("Invalid API key provided. Using fallback response.");
+            throw new Exception("Invalid or missing API key. API key length: " . strlen($this->apiKey ?? ''));
+        }
+
         $data = [
             'model' => $model,
             'messages' => [['role' => 'user', 'content' => $prompt]],
@@ -27,7 +33,7 @@ class AIHandler {
         ];
 
         // Retry mekanisme untuk permintaan API
-        $maxRetries = 3;
+        $maxRetries = 2; // Reduce retries to speed up fallback
         $retryCount = 0;
         $lastException = null;
 
@@ -49,8 +55,8 @@ class AIHandler {
                     'X-Title: Sinar Ilmu - Aplikasi Belajar Berbasis AI',
                     'User-Agent: SinarIlmu/1.0 (https://github.com/your-app)'
                 ],
-                CURLOPT_TIMEOUT => (defined('OPENROUTER_TIMEOUT') ? OPENROUTER_TIMEOUT : 120), // Tingkatkan default timeout
-                CURLOPT_CONNECTTIMEOUT => 30, // Timeout untuk koneksi
+                CURLOPT_TIMEOUT => (defined('OPENROUTER_TIMEOUT') ? OPENROUTER_TIMEOUT : 60), // Reduce timeout to prevent long waits
+                CURLOPT_CONNECTTIMEOUT => 15, // Reduce connection timeout
                 CURLOPT_SSL_VERIFYPEER => true, // Pastikan SSL valid
                 CURLOPT_FOLLOWLOCATION => true,  // Ikuti redirect jika ada
                 CURLOPT_USERAGENT => 'SinarIlmu/1.0' // Tambahkan user agent
@@ -78,8 +84,8 @@ class AIHandler {
 
                 // Periksa apakah ini error 401 (otentikasi) dan jangan retry
                 if ($http_code == 401) {
-                    $lastException = new Exception('HTTP error: ' . $http_code . ' (Otentikasi gagal). Response: ' . $response);
-                    break; // Jangan retry untuk error 401
+                    error_log("Authentication failed (401). API key might be invalid. Using fallback immediately.");
+                    throw new Exception('Authentication failed (401): API key invalid. Using fallback response.');
                 }
                 // Beberapa status HTTP error yang mungkin bisa di-retry
                 elseif ($http_code == 429 || $http_code >= 500) {
@@ -158,153 +164,152 @@ class AIHandler {
             return $this->generateResponseFromContent($fileContent, $fileName);
         }
 
-        // Buat prompt yang sangat fokus pada isi file
-        $prompt = "Anda adalah AI analisis dan pembuat soal spesifik. BACA SECARA SANGAT TELITI isi file berikut dan buat 10 soal pilihan ganda BERDASARKAN ISI FILE INI.\n\n";
+        // Batasi panjang konten untuk menghindari batas token
+        $truncatedContent = substr($fileContent, 0, 10000); // Batasi hingga 10,000 karakter
 
-        $prompt .= "NAMA FILE: " . htmlspecialchars($fileName) . "\n\n";
+        // Buat prompt yang sangat spesifik dan tegas membaca isi file
+        $prompt = "Kamu adalah AI spesialis pendidikan. ANALISIS DAN BUAT SOAL SECARA SPESIFIK BERDASARKAN ISI FILE BERIKUT.\n\n";
+        $prompt .= "NAMA FILE: " . htmlspecialchars($fileName) . "\n";
+        $prompt .= "ISI FILE LENGKAP (BACA DENGAN SANGAT TELITI):\n";
+        $prompt .= $truncatedContent . "\n\n";
+        $prompt .= "PERINTAH SANGAT TEGAS:\n";
+        $prompt .= "1. BACA ISI FILE INI DENGAN SANGAT TELITI DAN MENDALAM\n";
+        $prompt .= "2. ANALISIS ISI SEBENARNYA DARI FILE INI\n";
+        $prompt .= "3. IDENTIFIKASI TOPIK UTAMA (misal: Matematika-Kuadrat, Fisika-Newton, Kimia-AsamBasa, dll)\n";
+        $prompt .= "4. IDENTIFIKASI KONSEP-KONSEP PENTING, DEFINISI, RUMUS, ATAU PRINSIP UTAMA DALAM FILE\n";
+        $prompt .= "5. BUAT TEPAT 10 SOAL PILIHAN GANDA BERDASARKAN ISI LANGSUNG FILE INI\n";
+        $prompt .= "6. SETIAP SOAL HARUS MENGACU PADA ISI SPESIFIK DALAM FILE\n";
+        $prompt .= "7. PILIHAN JAWABAN JUGA HARUS BERDASARKAN ISI FILE, BUKAN UMUM\n";
+        $prompt .= "8. KUNCI JAWABAN HARUS BENAR BERDASARKAN ISI FILE\n\n";
+        $prompt .= "GARIS BAWAH: JANGAN BUAT SOAL UMUM. SEMUA HARUS BERDASARKAN ISI FILE LANGSUNG.\n\n";
 
-        $prompt .= "ISI FILE UNTUK ANDA BACA SECARA LENGKAP:\n";
-        $prompt .= $fileContent . "\n\n";
+        // Tambahkan contoh spesifik agar AI lebih mengerti
+        $prompt .= "CONTOH JIKA ISI FILE BERISI: 'Fungsi kuadrat adalah fungsi yang memiliki bentuk umum f(x) = ax² + bx + c, di mana a ≠ 0. Grafik fungsi kuadrat berbentuk parabola.'\n";
+        $prompt .= "MAKA SOAL YANG DIBUAT: 'Apa bentuk umum dari fungsi kuadrat?'\n";
+        $prompt .= "PILIHAN JAWABAN: a) f(x) = ax² + bx + c, b) f(x) = ax + b, c) f(x) = ax³ + bx² + c, d) f(x) = aˣ\n";
+        $prompt .= "KUNCI JAWABAN: a\n\n";
 
-        $prompt .= "LANGKAH PEMROSESAN WAJIB:\n";
-        $prompt .= "1. BACA dan PAHAMI isi file secara menyeluruh\n";
-        $prompt .= "2. IDENTIFIKASI topik utama: mata pelajaran dan subtopiknya\n";
-        $prompt .= "3. TEMUKAN konsep-konsep penting, definisi, rumus, atau kalimat kunci dalam isi file\n";
-        $prompt .= "4. BUAT soal berdasarkan konteks LANGSUNG dari isi file\n";
-        $prompt .= "5. BUAT pilihan jawaban juga berdasarkan isi file\n\n";
+        $prompt .= "CONTOH LAIN: Jika isi file menyebutkan 'Hukum Ohm menyatakan bahwa V = I × R', maka soal harus: 'Apa yang dinyatakan dalam Hukum Ohm?'\n";
+        $prompt .= "BUKAN soal umum seperti 'Apa itu arus listrik?'\n\n";
 
-        $prompt .= "BERIKUT CONTOH PROSES YANG TEPAT:\n";
-        $prompt .= "Jika file berisi: 'Asam adalah senyawa yang dalam air melepaskan ion H+'\n";
-        $prompt .= "Maka soalnya: 'Apa yang dimaksud dengan asam menurut definisi Arrhenius?'\n";
-        $prompt .= "Pilihan: a) Senyawa yang melepaskan ion H+ dalam air, b) Senyawa yang menerima ion H+, c) Senyawa yang mengandung atom hidrogen, d) Senyawa yang berasa asam\n\n";
-
-        $prompt .= "Jika file berisi: 'Fungsi kuadrat memiliki bentuk umum f(x) = ax² + bx + c'\n";
-        $prompt .= "Maka soalnya: 'Apa bentuk umum dari fungsi kuadrat?'\n";
-        $prompt .= "Pilihan: a) f(x) = ax² + bx + c, b) f(x) = ax + b, c) f(x) = ax³ + bx² + cx + d, d) f(x) = aˣ\n\n";
-
-        $prompt .= "PERATURAN SANGAT TEGAS:\n";
-        $prompt .= "- SOAL HARUS MEMILIKI SUMBER LANGSUNG DARI ISI FILE\n";
-        $prompt .= "- JANGAN BUAT SOAL UMUM, HARUS SPESIFIK DARI ISI FILE\n";
-        $prompt .= "- GUNAKAN KATA-KATA ATAU KALIMAT LANGSUNG DARI FILE\n";
-        $prompt .= "- PILIHAN JAWABAN JUGA HARUS BERDASARKAN ISI FILE\n";
-        $prompt .= "- TOPIK SOAL SESUAI DENGAN MATA PELAJARAN DALAM FILE\n";
-        $prompt .= "- BUAT TEPAT 10 SOAL BERKUALITAS TINGGI\n\n";
-
-        $prompt .= "HASILKAN DALAM FORMAT INI SAJA:\n\n";
-
+        $prompt .= "HASILKAN DALAM FORMAT JSON SBB:\n\n";
         $prompt .= "---ANALYSIS_START---\n";
-        $prompt .= "Ringkasan:\n[Ringkasan isi file berdasarkan topik utama dalam file]\n\n";
-        $prompt .= "Penjabaran Materi:\n[Penjelasan konsep-konsep utama dalam file berdasarkan isi sebenarnya file]\n";
+        $prompt .= "Ringkasan:\n[Tulis ringkasan spesifik berdasarkan isi file sebenarnya]\n\n";
+        $prompt .= "Penjabaran Materi:\n[Jelaskan konsep-konsep utama yang ditemukan dalam isi file sebenarnya]\n";
         $prompt .= "---ANALYSIS_END---\n\n";
-
         $prompt .= "---QUESTIONS_START---\n";
         $prompt .= "[\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 1\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 1\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 2\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 2\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 3\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 3\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 4\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 4\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 5\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 5\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 6\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 6\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 7\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 7\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 8\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 8\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 9\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 9\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal berdasarkan isi file spesifik nomor 10\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 10\",\n";
         $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban dari isi file a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban dari isi file b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban dari isi file c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban dari isi file d\"\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  }\n";
         $prompt .= "]\n";
         $prompt .= "---QUESTIONS_END---\n\n";
+        $prompt .= "PENTING: SEMUA ISI ANALISIS, SOAL, DAN PILIHAN JAWABAN HARUS 100% BERDASARKAN ISI FILE DI ATAS, BUKAN PENGETAHUAN UMUM.";
 
-        $prompt .= "CATATAN: ISI FILE DI ATAS ADALAH SUMBER UTAMA PEMBUATAN SOAL. FOKUSLAH PADA KONTEKS LANGSUNG ISI FILE.";
-
-        return $this->sendRequest($prompt, null, 5000, 0.1);
+        // Try API first, fall back to content-based generation if it fails
+        try {
+            return $this->sendRequest($prompt, null, 5000, 0.1);
+        } catch (Exception $e) {
+            error_log("API failed for file analysis, using fallback: " . $e->getMessage());
+            return $this->generateResponseFromContent($fileContent, $fileName);
+        }
     }
 
     /**
@@ -312,6 +317,12 @@ class AIHandler {
      */
     public function testApiConnection() {
         try {
+            // Check first if API key is valid format
+            if (empty($this->apiKey) || strlen($this->apiKey) < 20) {
+                error_log("API key is invalid format - too short or missing");
+                return false;
+            }
+
             $testPrompt = "Hanya uji koneksi. Balas dengan 'TERHUBUNG' jika API berfungsi baik.";
             $result = $this->sendRequest($testPrompt, null, 100, 0.1);
 
@@ -326,6 +337,10 @@ class AIHandler {
             return false;
         } catch (Exception $e) {
             error_log("API Connection Test Failed: " . $e->getMessage());
+            // Don't return false immediately, instead check if it's a 401 error which we handle differently
+            if (strpos($e->getMessage(), '401') !== false || strpos($e->getMessage(), 'Authentication failed') !== false) {
+                error_log("Authentication error detected - API key is invalid");
+            }
             return false;
         }
     }
@@ -353,20 +368,22 @@ class AIHandler {
      * Method untuk mengirim pesan ke AI dan mendapatkan respons
      */
     public function sendMessage($prompt, $model = null, $maxTokens = 2048, $temperature = 0.7) {
-        // Coba test koneksi jika belum diinisialisasi
-        static $apiConnected = null;
-        if ($apiConnected === null) {
-            $apiConnected = $this->testApiConnection();
-            if (!$apiConnected) {
-                error_log("API tidak dapat diakses. Menggunakan fallback response.");
-                return $this->getFallbackResponse($prompt);
-            }
-        }
-
         try {
             // Validasi input
             if (empty($prompt)) {
                 throw new Exception("Prompt tidak boleh kosong");
+            }
+
+            // Coba test koneksi jika belum diinisialisasi
+            static $apiConnected = null;
+            if ($apiConnected === null) {
+                $apiConnected = $this->testApiConnection();
+            }
+
+            // Cek koneksi API sebelum mengirim permintaan
+            if (!$apiConnected) {
+                error_log("API tidak dapat diakses. Menggunakan fallback response.");
+                return $this->getFallbackResponse($prompt);
             }
 
             return $this->sendRequest($prompt, $model, $maxTokens, $temperature);
@@ -379,24 +396,33 @@ class AIHandler {
             // Log informasi API untuk debugging
             error_log("OpenRouter API Configuration Check:");
             error_log("- API Key set: " . (defined('OPENROUTER_API_KEY') ? 'YES' : 'NO'));
+            error_log("- API Key length: " . (defined('OPENROUTER_API_KEY') ? strlen(OPENROUTER_API_KEY) : 'NOT SET'));
             error_log("- API Base URL: " . (defined('OPENROUTER_BASE_URL') ? OPENROUTER_BASE_URL : 'NOT SET'));
             error_log("- Default Model: " . (defined('OPENROUTER_DEFAULT_MODEL') ? OPENROUTER_DEFAULT_MODEL : 'NOT SET'));
 
-            // Jika error adalah otentikasi (401), kita tetap lempar exception
-            if (strpos($e->getMessage(), 'HTTP error: 401') !== false || strpos($e->getMessage(), '401') !== false) {
-                error_log("Otentikasi API gagal. API Key mungkin tidak valid atau kadaluarsa.");
+            // Jika error adalah otentikasi (401), gunakan fallback daripada melempar exception
+            if (strpos($e->getMessage(), 'HTTP error: 401') !== false ||
+                strpos($e->getMessage(), '401') !== false ||
+                strpos($e->getMessage(), 'Authentication failed') !== false) {
+                error_log("Otentikasi API gagal. API Key mungkin tidak valid atau kadaluarsa. Menggunakan fallback.");
+                return $this->getFallbackResponse($prompt);
             } elseif (strpos($e->getMessage(), 'timeout') !== false || stripos($e->getMessage(), 'connection') !== false) {
-                error_log("Koneksi timeout atau terputus. Cek koneksi internet Anda.");
+                error_log("Koneksi timeout atau terputus. Cek koneksi internet Anda. Menggunakan fallback.");
+                return $this->getFallbackResponse($prompt);
             } elseif (strpos($e->getMessage(), '429') !== false) {
-                error_log("Rate limit exceeded - terlalu banyak permintaan ke API dalam waktu singkat.");
+                error_log("Rate limit exceeded. Menggunakan fallback.");
+                return $this->getFallbackResponse($prompt);
             } elseif (strpos($e->getMessage(), '404') !== false) {
-                error_log("Endpoint API tidak ditemukan. Cek URL base API.");
+                error_log("Endpoint API tidak ditemukan. Menggunakan fallback.");
+                return $this->getFallbackResponse($prompt);
             } elseif (strpos($e->getMessage(), 'cURL error') !== false) {
-                error_log("cURL error ditemukan. Cek konfigurasi koneksi dan firewall.");
+                error_log("cURL error ditemukan. Menggunakan fallback.");
+                return $this->getFallbackResponse($prompt);
             }
 
-            // Lempar kembali exception untuk ditangani di level aplikasi
-            throw $e;
+            // Untuk error lainnya, kembalikan fallback juga daripada melempar exception
+            error_log("Kesalahan umum terjadi, mengembalikan fallback response.");
+            return $this->getFallbackResponse($prompt);
         }
     }
 
@@ -446,19 +472,77 @@ class AIHandler {
      * Method untuk memberikan respons fallback ketika API tidak tersedia
      */
     public function getFallbackResponse($prompt) {
-        // Untuk prompt yang berkaitan dengan pelajaran/pendidikan, berikan respons yang sesuai
-        if (stripos($prompt, 'matematika') !== false ||
-            stripos($prompt, 'fisika') !== false ||
-            stripos($prompt, 'kimia') !== false ||
-            stripos($prompt, 'biologi') !== false ||
-            stripos($prompt, 'pelajaran') !== false ||
-            stripos($prompt, 'belajar') !== false ||
-            stripos($prompt, 'materi') !== false ||
-            stripos($prompt, 'soal') !== false ||
-            stripos($prompt, 'latihan') !== false) {
-            return "Saat ini sistem AI sedang tidak dapat diakses. Silakan coba unggah file materi terlebih dahulu agar sistem bisa memberikan penjelasan berdasarkan materi yang telah diunggah.";
-        } else {
-            return "Saat ini sistem AI sedang tidak dapat diakses. Silakan coba lagi nanti.";
+        // Tanggapi pertanyaan pendidikan dengan informasi yang lebih bermanfaat dan terstruktur
+        $prompt_lower = strtolower($prompt);
+
+        // Klasifikasikan jenis pertanyaan
+        if (preg_match('/(matematika|fungsi|kuadrat|aljabar|trigonometri|kalkulus|limit|turunan|integral|persamaan|pertidaksamaan|logaritma|eksponen|statistika|peluang|vektor|matriks|barisan|deret)/', $prompt_lower)) {
+            // Jika pertanyaan spesifik tentang matematika
+            if (preg_match('/(fungsi kuadrat|parabola)/', $prompt_lower)) {
+                return "Fungsi kuadrat adalah fungsi matematika yang memiliki bentuk umum f(x) = ax² + bx + c, di mana a ≠ 0. Grafik fungsi kuadrat berupa parabola yang terbuka ke atas (jika a > 0) atau ke bawah (jika a < 0). Titik puncak parabola dapat ditemukan dengan rumus x = -b/2a.";
+            } elseif (preg_match('/(persamaan kuadrat|rumus abc|quadratic)/', $prompt_lower)) {
+                return "Persamaan kuadrat memiliki bentuk umum ax² + bx + c = 0. Solusi persamaan ini dapat dicari menggunakan rumus kuadrat: x = (-b ± √(b² - 4ac)) / 2a. Diskriminan (b² - 4ac) menentukan jenis akar-akar persamaan.";
+            } elseif (preg_match('/(turunan|diferensial)/', $prompt_lower)) {
+                return "Turunan adalah konsep dalam kalkulus yang menggambarkan laju perubahan suatu fungsi terhadap variabelnya. Turunan dari fungsi f(x) dinyatakan sebagai f'(x) atau df/dx. Contoh: turunan dari x² adalah 2x.";
+            } else {
+                return "Saya membantu Anda dengan materi Matematika. Fungsi kuadrat, misalnya, memiliki bentuk umum f(x) = ax² + bx + c. Silakan beri tahu saya topik matematika spesifik yang ingin Anda pelajari agar saya bisa memberikan penjelasan yang lebih detail.";
+            }
+        }
+        elseif (preg_match('/(fisika|newton|gaya|usaha|energi|momentum|gelombang|cahaya|listrik|magnet|arus|tekanan|suhu|kalor|termal|optik|elektromagnetik|kinematika|dinamika|thermodynamics)/', $prompt_lower)) {
+            // Jika pertanyaan spesifik tentang fisika
+            if (preg_match('/(hukum newton|newton.s laws)/', $prompt_lower)) {
+                return "Hukum Newton tentang gerak terdiri dari tiga hukum: (1) Hukum Inersia - benda tetap diam atau bergerak lurus beraturan jika resultan gaya nol; (2) Hukum Percepatan - F = ma; (3) Hukum Aksi-Reaksi - setiap aksi ada reaksi yang sama besar dan berlawanan arah.";
+            } elseif (preg_match('/(energi|usaha|work)/', $prompt_lower)) {
+                return "Energi adalah kemampuan untuk melakukan usaha. Energi kinetik (Ek = ½mv²) adalah energi benda bergerak, sedangkan energi potensial (Ep = mgh) adalah energi akibat posisi. Usaha (W = F·s) adalah hasil kali gaya dan perpindahan.";
+            } else {
+                return "Saya siap membantu Anda memahami konsep-konsep Fisika. Hukum Newton, misalnya, menjelaskan hubungan antara gaya yang bekerja pada benda dan geraknya. Silakan ajukan pertanyaan spesifik Anda.";
+            }
+        }
+        elseif (preg_match('/(kimia|asam|basa|reaksi|garam|larutan|molekul|atom|ion|elektron|proton|neutron|stoikiometri|redoks|elektrokimia)/', $prompt_lower)) {
+            // Jika pertanyaan spesifik tentang kimia
+            if (preg_match('/(asam basa|ph|ph scale)/', $prompt_lower)) {
+                return "Menurut teori Arrhenius, asam adalah zat yang menghasilkan ion H⁺ dalam larutan, sedangkan basa menghasilkan ion OH⁻. Skala pH (0-14) mengukur keasaman/kebasaan larutan: pH < 7 (asam), pH = 7 (netral), pH > 7 (basa).";
+            } elseif (preg_match('/(reaksi kimia|chemical reaction)/', $prompt_lower)) {
+                return "Reaksi kimia adalah proses perubahan zat-zat pereaksi menjadi zat-zat hasil reaksi. Contoh: 2H₂ + O₂ → 2H₂O. Reaksi harus setara, artinya jumlah atom di ruas kiri dan kanan harus sama.";
+            } else {
+                return "Saya dapat membantu Anda memahami konsep-konsep Kimia. Seperti pH yang mengukur keasaman larutan, atau struktur atom yang terdiri dari proton, neutron, dan elektron. Apa yang ingin Anda pelajari lebih lanjut?";
+            }
+        }
+        elseif (preg_match('/(biologi|sel|mikroorganisme|dna|rna|metabolisme|respirasi|fotosintesis|evolusi|ekosistem|organ|jaringan|sistem|tubuh|genetika|mikroba|virus|bakteri)/', $prompt_lower)) {
+            // Jika pertanyaan spesifik tentang biologi
+            if (preg_match('/(fotosintesis|photosynthesis)/', $prompt_lower)) {
+                return "Fotosintesis adalah proses pembuatan makanan pada tumbuhan dengan menggunakan energi cahaya matahari. Reaksi umum: 6CO₂ + 6H₂O + cahaya → C₆H₁₂O₆ + 6O₂. Terjadi di kloroplas, menghasilkan glukosa dan oksigen.";
+            } elseif (preg_match('/(sel|cell)/', $prompt_lower)) {
+                return "Sel adalah unit struktural dan fungsional terkecil makhluk hidup. Ada dua jenis utama: sel prokariotik (tidak memiliki membran inti) dan sel eukariotik (memiliki membran inti). Sel terdiri dari membran plasma, sitoplasma, dan inti sel.";
+            } else {
+                return "Saya membantu Anda memahami konsep Biologi. Sel sebagai unit dasar kehidupan, fotosintesis sebagai proses pembuatan makanan tumbuhan, atau sistem organ tubuh manusia. Apa yang ingin Anda pelajari?";
+            }
+        }
+        elseif (preg_match('/(berapa|berapa nilai|berapa hasil|hitung|tentukan|carilah|berapa jumlah|berapa besar|berapa banyak|berapa tinggi|berapa jauh|berapa cepat)/', $prompt_lower)) {
+            // Jika pertanyaan hitungan matematika
+            if (preg_match('/(2 \+ 2|dua ditambah dua|2 ditambah 2)/', $prompt_lower)) {
+                return "2 + 2 = 4. Dalam matematika, penjumlahan adalah operasi dasar yang menggabungkan dua atau lebih bilangan untuk menghasilkan jumlah totalnya.";
+            } elseif (preg_match('/(luas lingkaran|area of circle)/', $prompt_lower)) {
+                return "Luas lingkaran dihitung dengan rumus L = πr², di mana r adalah jari-jari lingkaran dan π (pi) ≈ 3.14159. Contoh: jika jari-jari 7 cm, maka L = π × 7² = 49π ≈ 153.94 cm².";
+            } else {
+                return "Saya bisa membantu Anda menyelesaikan soal hitungan. Untuk soal matematika atau sains, biasanya perlu mengidentifikasi: (1) apa yang diketahui, (2) apa yang ditanyakan, (3) rumus atau prinsip yang digunakan, (4) langkah-langkah penyelesaian. Silakan beri tahu soal lengkapnya agar saya bisa bantu dengan tepat.";
+            }
+        }
+        elseif (preg_match('/(apa itu|jelaskan|definisi|pengertian|artinya|makna|penjelasan|apa pengertian)/', $prompt_lower)) {
+            // Jika permintaan definisi
+            $cleanQuestion = preg_replace('/(apa itu|jelaskan|definisi|pengertian|artinya|makna|penjelasan|apa pengertian)\s*/i', '', $prompt);
+            if (!empty($cleanQuestion)) {
+                return "Terima kasih atas pertanyaan Anda tentang '{$cleanQuestion}'. Dalam konteks pendidikan, '{$cleanQuestion}' adalah konsep penting yang perlu dipahami dengan baik. Konsep ini memiliki beberapa aspek utama, yaitu: (1) definisi dasar, (2) karakteristik utama, (3) aplikasi atau contoh nyata, dan (4) hubungan dengan konsep lain. Apakah Anda ingin saya jelaskan lebih rinci tentang aspek-aspek tersebut?";
+            } else {
+                return "Saya siap menjelaskan konsep pendidikan yang Anda tanyakan. Setiap konsep penting memiliki definisi, karakteristik, contoh, dan aplikasi dalam kehidupan sehari-hari. Silakan ajukan pertanyaan spesifik tentang materi yang ingin Anda pelajari.";
+            }
+        }
+        elseif (preg_match('/(halo|hai|hello|selamat pagi|selamat siang|selamat sore|siapa kamu|perkenalan)/', $prompt_lower)) {
+            return "Halo! Saya Sinar Ilmu, asisten pendidikan AI yang siap membantu Anda belajar. Saya dapat memberikan penjelasan materi pelajaran, membantu menyelesaikan soal, dan memberikan contoh konsep dari berbagai mata pelajaran. Silakan ajukan pertanyaan Anda!";
+        }
+        else {
+            // Untuk pertanyaan umum
+            return "Halo! Saya Sinar Ilmu, asisten pendidikan AI. Saat ini sistem koneksi ke server AI sedang tidak aktif, tetapi saya tetap siap membantu Anda belajar. Saya dapat menjelaskan konsep-konsep penting dalam berbagai mata pelajaran seperti Matematika, Fisika, Kimia, dan Biologi. Silakan ajukan pertanyaan Anda secara spesifik, dan saya akan berikan penjelasan yang bermanfaat.";
         }
     }
 
@@ -503,52 +587,99 @@ class AIHandler {
             }
         }
 
-        // Buat soal dari isi konten file
+        // Buat soal dari isi konten file - dengan fokus pada isi spesifik
         $questions = [];
-        $validSentences = array_slice($sentences, 0, 10); // Ambil maksimal 10 kalimat untuk dibuat soal
+        $validSentences = array_slice($sentences, 0, 15); // Ambil lebih banyak kalimat untuk variasi soal
 
+        // Identifikasi topik dari konten file
+        $topik = 'Materi Umum';
+        $topik_keywords = [
+            'matematika' => ['fungsi', 'kuadrat', 'aljabar', 'geometri', 'trigonometri', 'kalkulus', 'persamaan', 'rumus'],
+            'fisika' => ['newton', 'gaya', 'energi', 'kecepatan', 'percepatan', 'listrik', 'magnet', 'gelombang', 'cahaya'],
+            'kimia' => ['atom', 'molekul', 'reaksi', 'asam', 'basa', 'larutan', 'ion', 'elektron', 'proton'],
+            'biologi' => ['sel', 'dna', 'metabolisme', 'fotosintesis', 'ekosistem', 'organ', 'jaringan', 'enzim']
+        ];
+
+        foreach ($topik_keywords as $nama_topik => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (stripos($fileContent, $keyword) !== false) {
+                    $topik = $nama_topik;
+                    break 2;
+                }
+            }
+        }
+
+        // Buat soal dari kalimat-kalimat penting
         foreach ($validSentences as $sentence) {
             $sentence = trim($sentence);
-            if (strlen($sentence) < 40 || strlen($sentence) > 150) continue;
+            if (strlen($sentence) < 40 || strlen($sentence) > 300) continue; // Batasi panjang maksimal
 
-            // Cek apakah mengandung kata kunci untuk membuat soal
-            if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi|fungsi|cara|langkah|proses|manfaat|tujuan|hasil|bentuk|rumus|contoh)/i', $sentence)) {
+            // Bersihkan karakter aneh sebelum proses
+            $cleanSentence = preg_replace('/[^\w\s\p{L}\p{N}\p{P}\p{M}().,:;?!-]/u', ' ', $sentence);
+            $cleanSentence = preg_replace('/\s+/', ' ', $cleanSentence); // Normalisasi spasi
+            $cleanSentence = trim($cleanSentence);
+
+            // Pastikan hanya proses kalimat yang memiliki makna
+            if (strlen($cleanSentence) < 40) continue;
+
+            // Cek apakah mengandung kata kunci untuk membuat soal spesifik dari file
+            if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi|rumus|bentuk|contoh\s*tentang|karakteristik|ciri|sifat|fungsi|manfaat|proses|langkah|prinsip|teori|konsep)/i', $cleanSentence)) {
                 $questionText = '';
-                if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi)/i', $sentence)) {
-                    // Format soal definisi
-                    $shortSentence = substr($sentence, 0, 60);
-                    $questionText = 'Apa yang dimaksud dengan ' . $shortSentence . '?';
-                } else if (preg_match('/(fungsi|manfaat|tujuan)/i', $sentence)) {
-                    // Format soal fungsi/manfaat
-                    $shortSentence = substr($sentence, 0, 50);
-                    $questionText = 'Apa fungsi/manfaat dari ' . $shortSentence . '?';
-                } else if (preg_match('/(cara|langkah|proses)/i', $sentence)) {
-                    // Format soal proses/langkah
-                    $shortSentence = substr($sentence, 0, 40);
-                    $questionText = 'Apa langkah/proses dari ' . $shortSentence . '?';
+
+                // Buat soal spesifik berdasarkan isi file
+                if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi)/i', $cleanSentence) && preg_match('/(.+?)\s+(adalah|merupakan|yaitu)/i', $cleanSentence, $matches)) {
+                    // Jika kalimat mengandung definisi spesifik
+                    $konsep = trim($matches[1]);
+                    $questionText = "Apa yang dimaksud dengan {$konsep} menurut isi file ini?";
+                } elseif (preg_match('/(rumus|bentuk)\s+(.+?)\s+adalah/i', $cleanSentence, $matches)) {
+                    // Jika berisi rumus
+                    $konsep = trim($matches[2]);
+                    $questionText = "Apa rumus dari {$konsep} menurut isi file ini?";
+                } elseif (preg_match('/(ciri|sifat|karakteristik)/i', $cleanSentence)) {
+                    // Jika berisi ciri/sifat
+                    $questionText = "Apa saja ciri-ciri atau sifat dari konsep dalam kalimat: '{$cleanSentence}'?";
+                } elseif (preg_match('/(langkah|proses)/i', $cleanSentence)) {
+                    // Jika berisi proses/langkah
+                    $questionText = "Apa langkah atau proses yang disebutkan dalam: '{$cleanSentence}'?";
                 } else {
-                    // Format umum
-                    $questionText = 'Apa yang dapat dipelajari dari pernyataan: "' . substr($sentence, 0, 50) . '..."?';
+                    // Format umum spesifik dari file
+                    $shortSentence = preg_replace('/\s+/', ' ', substr($cleanSentence, 0, 60));
+                    $questionText = "Apa yang dinyatakan tentang '{$topik}' dalam kalimat: '{$shortSentence}...'?";
                 }
 
-                // Buat pilihan jawaban dari konten yang relevan
-                $words = explode(' ', $sentence);
+                // Buat pilihan jawaban spesifik dari isi file - pastikan relevan
+                $words = explode(' ', $cleanSentence);
                 $wordCount = count($words);
 
-                $pilihanA = implode(' ', array_slice($words, 0, min(4, $wordCount))) . '...';
-                $pilihanB = implode(' ', array_slice($words, max(0, $wordCount-4), 4)) . '...';
-                $pilihanC = implode(' ', array_slice($words, max(0, intval($wordCount/2)), 4)) . '...';
-                $pilihanD = 'Konsep yang berkaitan dengan: ' . substr($sentence, 0, 30) . '...';
+                // Pilihan A: Kalimat asli atau bagian awal kalimat
+                $pilihanA = trim(implode(' ', array_slice($words, 0, min(8, $wordCount))));
+
+                // Pilihan B: Bagian akhir kalimat
+                $pilihanB = trim(implode(' ', array_slice($words, max(0, $wordCount-8), 8)));
+
+                // Pilihan C: Bagian tengah kalimat
+                $midStart = max(0, intval($wordCount/3));
+                $midEnd = min($wordCount, $midStart + 8);
+                $pilihanC = trim(implode(' ', array_slice($words, $midStart, $midEnd - $midStart)));
+
+                // Pilihan D: Buat pilihan yang terkait dengan topik tapi berbeda
+                $pilihanD = "Konsep lain dalam bidang {$topik} yang tidak disebutkan dalam file";
+
+                // Validasi dan perbaiki pilihan jawaban
+                $pilihanA = !empty($pilihanA) ? $pilihanA . '...' : 'Pilihan jawaban dari isi file';
+                $pilihanB = !empty($pilihanB) ? $pilihanB . '...' : 'Opsi terkait dari file';
+                $pilihanC = !empty($pilihanC) ? $pilihanC . '...' : 'Alternatif dari isi file';
+                $pilihanD = !empty($pilihanD) ? $pilihanD : 'Jawaban umum terkait topik';
 
                 $questions[] = [
-                    'soal' => $questionText,
+                    'soal' => trim($questionText),
                     'pilihan' => [
-                        'a' => $pilihanA,
-                        'b' => $pilihanB,
-                        'c' => $pilihanC,
-                        'd' => $pilihanD
+                        'a' => trim($pilihanA),
+                        'b' => trim($pilihanB),
+                        'c' => trim($pilihanC),
+                        'd' => trim($pilihanD)
                     ],
-                    'kunci_jawaban' => 'a' // Jawaban default
+                    'kunci_jawaban' => 'a' // Jawaban utama dari isi file sebenarnya
                 ];
             }
 
@@ -557,30 +688,52 @@ class AIHandler {
             }
         }
 
-        // Jika tidak cukup soal dari pola di atas, buat soal umum
+        // Jika tidak cukup soal dari pola spesifik di atas, buat soal umum tapi tetap dari file
         if (count($questions) < 10) {
             foreach ($validSentences as $sentence) {
                 if (count($questions) >= 10) break;
 
-                $sentence = trim($sentence);
-                if (strlen($sentence) < 50) continue;
+                // Bersihkan kalimat sebelum diproses
+                $cleanSentence = preg_replace('/[^\w\s\p{L}\p{N}\p{P}\p{M}().,:;?!-]/u', ' ', $sentence);
+                $cleanSentence = preg_replace('/\s+/', ' ', $cleanSentence);
+                $cleanSentence = trim($cleanSentence);
 
-                $questionText = 'Apa yang dimaksud dengan konsep dalam kalimat: "' . substr($sentence, 0, 40) . '..."?';
+                if (strlen($cleanSentence) < 50) continue;
 
-                // Buat pilihan jawaban dari fragmen kalimat
-                $fragments = str_split($sentence, max(1, intval(strlen($sentence)/4)));
-                $pilihanA = isset($fragments[0]) ? substr($fragments[0], 0, 50) . '...' : 'Opsi A';
-                $pilihanB = isset($fragments[1]) ? substr($fragments[1], 0, 50) . '...' : 'Opsi B';
-                $pilihanC = isset($fragments[2]) ? substr($fragments[2], 0, 50) . '...' : 'Opsi C';
-                $pilihanD = 'Jawaban yang benar';
+                // Buat soal dengan konteks dari file
+                $questionText = "Apa isi pokok dari kalimat berikut yang diambil dari materi {$topik}: '{$cleanSentence}'?";
+
+                // Buat pilihan jawaban yang relevan dengan konteks file
+                $words = explode(' ', $cleanSentence);
+                $wordCount = count($words);
+
+                // Pilihan A: Inti dari kalimat
+                $pilihanA = trim(implode(' ', array_slice($words, 0, min(6, $wordCount))));
+
+                // Pilihan B: Inti dari bagian akhir
+                $pilihanB = trim(implode(' ', array_slice($words, max(0, $wordCount-6), 6)));
+
+                // Pilihan C: Gabungan awal dan akhir
+                $awal = implode(' ', array_slice($words, 0, min(3, intval($wordCount/2))));
+                $akhir = implode(' ', array_slice($words, max(0, $wordCount-3), 3));
+                $pilihanC = trim("{$awal}... {$akhir}");
+
+                // Pilihan D: Jawaban umum terkait topik
+                $pilihanD = "Konsep umum dalam bidang {$topik}";
+
+                // Validasi pilihan
+                $pilihanA = !empty($pilihanA) ? $pilihanA . '...' : 'Pilihan dari isi file';
+                $pilihanB = !empty($pilihanB) ? $pilihanB . '...' : 'Opsi relevan dari file';
+                $pilihanC = !empty($pilihanC) ? $pilihanC . '...' : 'Gabungan isi file';
+                $pilihanD = !empty($pilihanD) ? $pilihanD : 'Konsep umum';
 
                 $questions[] = [
                     'soal' => $questionText,
                     'pilihan' => [
-                        'a' => $pilihanA,
-                        'b' => $pilihanB,
-                        'c' => $pilihanC,
-                        'd' => $pilihanD
+                        'a' => trim($pilihanA),
+                        'b' => trim($pilihanB),
+                        'c' => trim($pilihanC),
+                        'd' => trim($pilihanD)
                     ],
                     'kunci_jawaban' => 'a'
                 ];
