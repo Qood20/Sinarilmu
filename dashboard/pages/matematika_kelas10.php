@@ -18,133 +18,169 @@ require_once '../includes/functions.php';
 <div class="max-w-6xl mx-auto">
     <div class="bg-white rounded-xl shadow-lg p-8">
         <div class="flex items-center mb-6">
-            <a href="?page=analisis_materi" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <a href="?page=materi_kelas10" class="text-blue-600 hover:text-blue-800 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Kembali
+                Kembali ke Kelas 10
             </a>
         </div>
         
         <h2 class="text-3xl font-bold text-gray-800 mb-2">Matematika Kelas 10</h2>
         <p class="text-gray-600 mb-8">Materi pelajaran matematika untuk kelas 10 SMA</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Materi 1 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Eksponen dan Logaritma</h3>
-                <p class="text-gray-600 mb-4">Memahami konsep eksponen dan logaritma serta penerapannya</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+        <!-- Sub-topik Matematika Kelas 10 -->
+        <div class="mb-10">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">Konsep-Konsep dalam Matematika Kelas 10</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Konsep Eksponen dan Logaritma -->
+                <a href="?page=matematika_kelas10&konsep=eksponen_logaritma" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Eksponen dan Logaritma</h3>
+                    <p class="text-gray-600 mb-4">Memahami konsep eksponen dan logaritma serta penerapannya</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
-            </div>
 
-            <!-- Materi 2 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Persamaan dan Fungsi Kuadrat</h3>
-                <p class="text-gray-600 mb-4">Grafik, akar-akar, dan penerapan fungsi kuadrat</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <!-- Konsep Persamaan dan Fungsi Kuadrat -->
+                <a href="?page=matematika_kelas10&konsep=persamaan_kuadrat" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Persamaan & Fungsi Kuadrat</h3>
+                    <p class="text-gray-600 mb-4">Grafik, akar-akar, dan penerapan fungsi kuadrat</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
-            </div>
 
-            <!-- Materi 3 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Sistem Persamaan Linear</h3>
-                <p class="text-gray-600 mb-4">Penyelesaian sistem persamaan linear dua dan tiga variabel</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <!-- Konsep Sistem Persamaan Linear -->
+                <a href="?page=matematika_kelas10&konsep=spl" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">SPL (Sistem Persamaan Linear)</h3>
+                    <p class="text-gray-600 mb-4">Penyelesaian SPL dengan berbagai metode</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
-            </div>
 
-            <!-- Materi 4 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Trigonometri Dasar</h3>
-                <p class="text-gray-600 mb-4">Perbandingan trigonometri dan identitas dasar</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <!-- Konsep Trigonometri Dasar -->
+                <a href="?page=matematika_kelas10&konsep=trigonometri" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Trigonometri Dasar</h3>
+                    <p class="text-gray-600 mb-4">Perbandingan trigonometri dan identitas dasar</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
-            </div>
 
-            <!-- Materi 5 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Geometri Analitik</h3>
-                <p class="text-gray-600 mb-4">Garis lurus, lingkaran, dan persamaan garis</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <!-- Konsep Geometri Analitik -->
+                <a href="?page=matematika_kelas10&konsep=geometri_analitik" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Geometri Analitik</h3>
+                    <p class="text-gray-600 mb-4">Garis lurus, lingkaran, dan persamaan</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
-            </div>
 
-            <!-- Materi 6 -->
-            <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Statistika</h3>
-                <p class="text-gray-600 mb-4">Ukuran pemusatan, penyebaran, dan penyajian data</p>
-                <a href="#" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
-                    Pelajari Sekarang
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
+                <!-- Konsep Statistika -->
+                <a href="?page=matematika_kelas10&konsep=statistika" class="block border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-blue-100 text-blue-800 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Statistika</h3>
+                    <p class="text-gray-600 mb-4">Ukuran pemusatan, penyebaran, dan penyajian data</p>
+                    <div class="text-blue-600 font-medium inline-flex items-center">
+                        Pelajari Sekarang
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
                 </a>
             </div>
         </div>
 
-        <!-- Admin Uploaded Materials Section for Math -->
         <?php
+        // Ambil parameter konsep dari URL
+        $selected_konsep = $_GET['konsep'] ?? '';
+
+        // Mapping konsep ke sub_topik yang sesuai
+        $konsep_map = [
+            'eksponen_logaritma' => ['Eksponen', 'Logaritma'],
+            'persamaan_kuadrat' => ['Persamaan Kuadrat', 'Fungsi Kuadrat'],
+            'spl' => ['Sistem Persamaan Linear', 'SPL'],
+            'trigonometri' => ['Trigonometri', 'Perbandingan Trigonometri'],
+            'geometri_analitik' => ['Geometri Analitik', 'Garis Lurus', 'Lingkaran'],
+            'statistika' => ['Statistika', 'Ukuran Pemusatan', 'Ukuran Penyebaran']
+        ];
+
+        // Filter berdasarkan konsep jika ada
         global $pdo;
         try {
-            $stmt = $pdo->prepare("
-                SELECT m.*, u.full_name as uploaded_by
-                FROM materi_pelajaran m
-                LEFT JOIN users u ON m.created_by = u.id
-                WHERE m.kelas = '10' AND m.mata_pelajaran = 'matematika' AND m.status = 'aktif'
-                ORDER BY m.sub_topik, m.created_at DESC
-            ");
-            $stmt->execute();
+            if (!empty($selected_konsep) && isset($konsep_map[$selected_konsep])) {
+                // Query untuk mencari berdasarkan sub_topik
+                $placeholders = str_repeat('?,', count($konsep_map[$selected_konsep]) - 1) . '?';
+                $sql = "SELECT m.*, u.full_name as uploaded_by
+                        FROM materi_pelajaran m
+                        LEFT JOIN users u ON m.created_by = u.id
+                        WHERE m.kelas = ? AND m.mata_pelajaran = ?
+                        AND m.sub_topik IN ($placeholders)
+                        AND m.status = 'aktif'
+                        ORDER BY m.sub_topik, m.created_at DESC";
+
+                $search_params = array_merge(['10', 'matematika'], $konsep_map[$selected_konsep]);
+
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($search_params);
+            } else {
+                // Tampilkan semua jika tidak ada filter konsep
+                $stmt = $pdo->prepare("
+                    SELECT m.*, u.full_name as uploaded_by
+                    FROM materi_pelajaran m
+                    LEFT JOIN users u ON m.created_by = u.id
+                    WHERE m.kelas = '10' AND m.mata_pelajaran = 'matematika' AND m.status = 'aktif'
+                    ORDER BY m.sub_topik, m.created_at DESC
+                ");
+                $stmt->execute();
+            }
+
             $admin_materials = $stmt->fetchAll();
         } catch (Exception $e) {
             error_log("Error getting admin materials: " . $e->getMessage());
@@ -154,12 +190,33 @@ require_once '../includes/functions.php';
         if (!empty($admin_materials)):
         ?>
         <div class="mt-10">
-            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Materi Tambahan dari Admin
-            </h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <?php
+                    if (!empty($selected_konsep)) {
+                        $konsep_names = [
+                            'eksponen_logaritma' => 'Eksponen dan Logaritma',
+                            'persamaan_kuadrat' => 'Persamaan & Fungsi Kuadrat',
+                            'spl' => 'Sistem Persamaan Linear',
+                            'trigonometri' => 'Trigonometri Dasar',
+                            'geometri_analitik' => 'Geometri Analitik',
+                            'statistika' => 'Statistika'
+                        ];
+                        echo 'Materi untuk: ' . ($konsep_names[$selected_konsep] ?? 'Topik Terpilih');
+                    } else {
+                        echo 'Semua Materi Tambahan dari Admin';
+                    }
+                    ?>
+                </h3>
+                <?php if (!empty($selected_konsep)): ?>
+                <a href="?page=matematika_kelas10" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded">
+                    Lihat Semua
+                </a>
+                <?php endif; ?>
+            </div>
 
             <?php
             // Group materials by sub_topik
@@ -218,7 +275,7 @@ require_once '../includes/functions.php';
                             </div>
                         </div>
                         <div class="mt-3 flex justify-between items-center">
-                            <a href="<?php echo $material['file_path']; ?>" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+                            <a href="view_material.php?file=<?php echo urlencode($material['file_path']); ?>&id=<?php echo $material['id']; ?>" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>

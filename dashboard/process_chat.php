@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Ambil file-file terbaru milik pengguna untuk referensi AI
             $stmt = $pdo->prepare("
-                SELECT a.ringkasan, a.penjabaran_materi, f.original_name
+                SELECT a.ringkasan, a.penjabaran_materi, f.original_name, f.description
                 FROM analisis_ai a
                 JOIN upload_files f ON a.file_id = f.id
                 WHERE f.user_id = ?
@@ -56,14 +56,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Bangun konteks dari file yang telah diupload
             $konteks = "Kamu adalah AI asisten pendidikan bernama Sinar Ilmu. ";
-            $konteks .= "Berikut adalah materi dari file yang telah diupload oleh pengguna:\n\n";
+            $konteks .= "Berikut adalah materi dari file yang telah diupload oleh pengguna (BERDASARKAN ISI SEBENARNYA DARI FILE BUKAN PENGETAHUAN UMUM):\n\n";
 
             $ada_referensi = false;
             foreach ($referensi_files as $file) {
                 $konteks .= "File: " . $file['original_name'] . "\n";
+                if (!empty($file['description'])) {
+                    $konteks .= "Deskripsi File: " . $file['description'] . "\n";
+                }
                 $konteks .= "Ringkasan: " . $file['ringkasan'] . "\n";
                 if (!empty($file['penjabaran_materi'])) {
-                    $konteks .= "Penjabaran: " . $file['penjabaran_materi'] . "\n";
+                    $konteks .= "Penjabaran Materi: " . $file['penjabaran_materi'] . "\n";
                 }
                 $konteks .= "\n";
                 $ada_referensi = true;
@@ -73,8 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $konteks .= "Pengguna belum mengupload file materi apapun.\n\n";
             }
 
+            $konteks .= "PENTING: JAWAB PERTANYAAN BERDASARKAN ISI FILE DI ATAS SECARA SPESIFIK. ";
+            $konteks .= "HANYA GUNAKAN PENGETAHUAN UMUM JIKA TIDAK ADA INFORMASI RELEVAN DALAM FILE YANG DIUPLOAD. ";
+            $konteks .= "JIKA MENGGUNAKAN PENGETAHUAN UMUM, SEBUTKAN BAHWA JAWABAN BUKAN BERDASARKAN FILE YANG DIUPLOAD.\n\n";
             $konteks .= "Pertanyaan pengguna: " . $pesan_pengguna . "\n";
-            $konteks .= "Jawab pertanyaan ini berdasarkan materi dari file-file di atas jika relevan. Jika tidak ada informasi relevan atau tidak ada file diupload, berikan jawaban pendidikan yang bermanfaat berdasarkan pengetahuan umum. Berikan jawaban yang lengkap, jelas, dan membantu dalam konteks pembelajaran. Jika kamu memberikan jawaban berdasarkan pengetahuan umum, sebutkan bahwa ini bukan dari file yang diupload.";
 
             // Pastikan koneksi database aman sebelum digunakan
             if ($pdo === null) {
