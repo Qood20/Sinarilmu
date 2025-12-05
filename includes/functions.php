@@ -195,6 +195,252 @@ function format_file_size($bytes) {
 }
 
 /**
+ * Generate a random verification token
+ */
+function generate_verification_token($length = 32) {
+    return bin2hex(random_bytes($length));
+}
+
+/**
+ * Send password reset email
+ * NOTE: This is a simplified implementation. In production, you would want to use a proper email library.
+ */
+function send_password_reset_email($email, $token) {
+    // Build the reset URL - account for potential subdirectories
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $path = dirname(dirname($_SERVER['SCRIPT_NAME']));
+    // Ensure path doesn't end with a slash to avoid double slashes
+    $path = rtrim($path, '/');
+
+    $reset_url = "$protocol://$host$path/?page=reset_password&token=$token";
+
+    $subject = "Permintaan Reset Kata Sandi - Sinar Ilmu";
+
+    $message = "
+    <html>
+    <head>
+        <title>Reset Kata Sandi</title>
+    </head>
+    <body>
+        <h2>Permintaan Reset Kata Sandi</h2>
+        <p>Anda menerima email ini karena ada permintaan untuk mereset kata sandi akun Anda di Sinar Ilmu.</p>
+        <p>Klik tautan di bawah ini untuk mereset kata sandi Anda:</p>
+        <p><a href='$reset_url'>Reset Kata Sandi</a></p>
+        <p>Tautan ini akan kedaluwarsa dalam 1 jam.</p>
+        <p>Jika Anda tidak melakukan permintaan reset kata sandi, abaikan email ini.</p>
+    </body>
+    </html>
+    ";
+
+    // Set content-type header for sending HTML email
+    $headers = "MIME-Version: 1.0" . "\r\n";
+    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+    $headers .= 'From: noreply@sinarilmu.com' . "\r\n";
+
+    // For now, we'll just return true to simulate sending
+    // In production, you would use a proper email service
+    error_log("Password reset email sent to: $email with token: $token");
+    error_log("Password reset URL: $reset_url");
+    return true;
+}
+
+/**
+ * Check if the password reset tokens table exists
+ */
+function check_password_reset_table_exists() {
+    global $pdo;
+
+    if ($pdo === null) {
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'password_reset_tokens'");
+        return $stmt->fetch() !== false;
+    } catch (Exception $e) {
+        error_log("Error checking if password_reset_tokens table exists: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Create the password reset tokens table
+ */
+function create_password_reset_table() {
+    global $pdo;
+
+    if ($pdo === null) {
+        return false;
+    }
+
+    try {
+        // Create the table
+        $sql = "CREATE TABLE password_reset_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token VARCHAR(255) NOT NULL UNIQUE,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );";
+
+        $pdo->exec($sql);
+
+        // Create indexes
+        $pdo->exec("CREATE INDEX idx_password_reset_token ON password_reset_tokens(token);");
+        $pdo->exec("CREATE INDEX idx_password_reset_expires ON password_reset_tokens(expires_at);");
+        $pdo->exec("CREATE INDEX idx_password_reset_user_id ON password_reset_tokens(user_id);");
+
+        return true;
+    } catch (Exception $e) {
+        error_log("Error creating password_reset_tokens table: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Request password reset - generate token and send email
+ */
+function request_password_reset($email) {
+    global $pdo;
+
+    if ($pdo === null) {
+        error_log("Database not connected when trying to request password reset");
+        return false;
+    }
+
+    // Check if the table exists, and create it if necessary
+    if (!check_password_reset_table_exists()) {
+        if (!create_password_reset_table()) {
+            error_log("Failed to create password_reset_tokens table");
+            return false;
+        }
+    }
+
+    try {
+        // Find user by email
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            // Even if email doesn't exist, return true to prevent email enumeration
+            return true;
+        }
+
+        $user_id = $user['id'];
+
+        // Generate a unique token
+        $token = generate_verification_token();
+        $expires_at = date('Y-m-d H:i:s', strtotime('+1 hour')); // Token expires in 1 hour
+
+        // Delete any existing unused tokens for this user
+        $stmt = $pdo->prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND used = 0");
+        $stmt->execute([$user_id]);
+
+        // Insert the new token
+        $stmt = $pdo->prepare("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)");
+        $result = $stmt->execute([$user_id, $token, $expires_at]);
+
+        if ($result) {
+            // Send email with the reset link
+            return send_password_reset_email($email, $token);
+        }
+
+        return false;
+    } catch (Exception $e) {
+        error_log("Error requesting password reset: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Validate password reset token
+ */
+function validate_password_reset_token($token) {
+    global $pdo;
+
+    if ($pdo === null) {
+        error_log("Database not connected when trying to validate password reset token");
+        return false;
+    }
+
+    // Check if the table exists
+    if (!check_password_reset_table_exists()) {
+        error_log("Password reset tokens table does not exist");
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT prt.*, u.email
+            FROM password_reset_tokens prt
+            JOIN users u ON prt.user_id = u.id
+            WHERE prt.token = ? AND prt.used = 0 AND prt.expires_at > NOW()
+        ");
+        $stmt->execute([$token]);
+        $token_data = $stmt->fetch();
+
+        return $token_data ? $token_data : false;
+    } catch (Exception $e) {
+        error_log("Error validating password reset token: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Reset user password using token
+ */
+function reset_user_password($token, $new_password) {
+    global $pdo;
+
+    if ($pdo === null) {
+        error_log("Database not connected when trying to reset user password");
+        return false;
+    }
+
+    // Check if the table exists
+    if (!check_password_reset_table_exists()) {
+        error_log("Password reset tokens table does not exist");
+        return false;
+    }
+
+    try {
+        // First, validate the token
+        $token_data = validate_password_reset_token($token);
+
+        if (!$token_data) {
+            return false;
+        }
+
+        // Hash the new password
+        $encrypted_password = encrypt_password($new_password);
+
+        // Update user's password
+        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $result = $stmt->execute([$encrypted_password, $token_data['user_id']]);
+
+        if ($result) {
+            // Mark the token as used
+            $stmt = $pdo->prepare("UPDATE password_reset_tokens SET used = 1 WHERE id = ?");
+            $stmt->execute([$token_data['id']]);
+
+            // Log the password reset activity
+            log_activity($token_data['user_id'], 'Password Reset', 'Kata sandi berhasil direset melalui fitur lupa sandi');
+
+            return true;
+        }
+
+        return false;
+    } catch (Exception $e) {
+        error_log("Error resetting user password: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Fungsi untuk membersihkan nama file dari karakter emoji
  */
 function clean_filename_from_emojis($filename) {

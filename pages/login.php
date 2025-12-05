@@ -132,7 +132,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
                         <label for="remember_me" class="ml-2 block text-sm text-gray-900">Ingat saya</label>
                     </div>
                     <div class="text-sm">
-                        <a href="#" class="font-medium text-blue-600 hover:text-blue-500">Lupa kata sandi?</a>
+                        <a href="?page=forgot_password" class="font-medium text-blue-600 hover:text-blue-500">Lupa kata sandi?</a>
                     </div>
                 </div>
 

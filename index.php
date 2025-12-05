@@ -62,6 +62,12 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
             case 'register':
                 include 'pages/register.php';
                 break;
+            case 'forgot_password':
+                include 'pages/forgot_password.php';
+                break;
+            case 'reset_password':
+                include 'pages/reset_password.php';
+                break;
             default:
                 include 'pages/home.php';
                 break;
