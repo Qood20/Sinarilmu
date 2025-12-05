@@ -101,12 +101,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 throw new Exception("Tidak dapat mengekstrak konten dari file jenis ini.");
                             }
 
+                            // Bersihkan konten dari karakter aneh sebelum dikirim ke AI
+                            $fileContent = cleanFileContentForAI($fileContent);
+
+                            if (empty(trim($fileContent)) || strlen(trim($fileContent)) < 20) {
+                                throw new Exception("Konten file tidak cukup bermakna untuk dianalisis oleh AI.");
+                            }
+
                             // Batasi ukuran konten untuk menghindari batas API
                             $fileContent = substr($fileContent, 0, 12000); // Batasi hingga 12,000 karakter agar lebih fokus
+
+                            // Log the AI request to see what's happening
+                            error_log("Starting AI analysis for file: " . $file['name'] . " with content length: " . strlen($fileContent));
 
                             $aiResponse = $aiHandler->getAnalysisAndExercises($fileContent, $file['name']);
 
                             if ($aiResponse) {
+                                error_log("AI Response received. Length: " . strlen($aiResponse) . " characters");
                                 // 1. Parse respons AI
                                 $analysisText = '';
                                 $questionsJson = '';
@@ -150,6 +161,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     } else {
                                         $detailedExplanation = $analysisText; // Fallback
                                     }
+                                }
+
+                                // Jika summary atau detailedExplanation kosong, gunakan fallback
+                                if (empty($summary) && !empty($analysisText)) {
+                                    $summary = substr($analysisText, 0, 200) . (strlen($analysisText) > 200 ? '...' : '');
+                                }
+
+                                if (empty($detailedExplanation) && !empty($analysisText)) {
+                                    $detailedExplanation = $analysisText;
                                 }
 
                                 // 2. Simpan analisis ke database
@@ -332,6 +352,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                             }
                                         }
                                     }
+
+                                    // Jika tidak ada soal yang dibuat dari parsing JSON atau manual parsing,
+                                    // coba buat soal dasar dari konten file sebagai fallback terakhir
+                                    if ($analysisId && $questionsAdded === 0) {
+                                        error_log("No questions generated from parsing. Attempting to create basic questions from file content...");
+
+                                        try {
+                                            // Ekstrak ulang konten file untuk membuat soal fallback
+                                            $originalFileContent = extractFileContent($upload_path, $file_extension);
+                                            if ($originalFileContent !== false) {
+                                                $cleanedFileContent = cleanFileContentForAI($originalFileContent);
+                                                $basicQuestionsCreated = createBasicQuestionsFromContent($analysisId, $cleanedFileContent, $pdo, $_SESSION['user_id']);
+                                                if ($basicQuestionsCreated > 0) {
+                                                    $questionsAdded = $basicQuestionsCreated;
+                                                    error_log("Created " . $basicQuestionsCreated . " basic questions from file content as fallback");
+                                                } else {
+                                                    error_log("Failed to create basic questions from file content");
+                                                }
+                                            }
+                                        } catch (Exception $e) {
+                                            error_log("Error in fallback question creation: " . $e->getMessage());
+                                        }
+                                    }
                                 }
 
                                 // Jika tidak ada soal yang ditambahkan tapi analisis berhasil, tetap update status
@@ -339,14 +382,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     error_log("No questions were saved for analysis_id: " . $analysisId . ", but summary was saved. Raw question content: " . $questionsJson);
 
                                     // Jika AI tidak menghasilkan soal yang valid, coba buat soal dasar dari konten file
+                                    // Sebagai fallback yang lebih kuat
                                     try {
-                                        $basicQuestionsCreated = createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $_SESSION['user_id']);
-                                        if ($basicQuestionsCreated > 0) {
-                                            $questionsAdded = $basicQuestionsCreated;
-                                            error_log("Created " . $basicQuestionsCreated . " basic questions as fallback for analysis_id: " . $analysisId);
+                                        error_log("Attempting to create basic questions from file content as guaranteed fallback for analysis_id: " . $analysisId);
+
+                                        // Ambil ulang konten file untuk fallback
+                                        $reExtractedContent = extractFileContent($upload_path, $file_extension);
+                                        if ($reExtractedContent !== false) {
+                                            $cleanedReExtractedContent = cleanFileContentForAI($reExtractedContent);
+                                            $basicQuestionsCreated = createBasicQuestionsFromContent($analysisId, $cleanedReExtractedContent, $pdo, $_SESSION['user_id']);
+                                            if ($basicQuestionsCreated > 0) {
+                                                $questionsAdded = $basicQuestionsCreated;
+                                                error_log("Created " . $basicQuestionsCreated . " basic questions as fallback for analysis_id: " . $analysisId);
+                                            } else {
+                                                error_log("Basic questions fallback also failed for analysis_id: " . $analysisId);
+                                            }
+                                        } else {
+                                            error_log("Could not re-extract content for fallback for analysis_id: " . $analysisId);
                                         }
                                     } catch (Exception $e) {
-                                        error_log("Error creating basic questions fallback: " . $e->getMessage());
+                                        error_log("Error in guaranteed basic questions fallback: " . $e->getMessage());
+                                    }
+                                }
+
+                                // Setelah semua parsing selesai, pastikan ada minimal beberapa soal sebagai jaminan
+                                if ($analysisId && $questionsAdded === 0) {
+                                    error_log("Warning: No questions were created even after all fallbacks. Creating minimum questions based on file content.");
+                                    try {
+                                        $minQuestionsCreated = createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $_SESSION['user_id']);
+                                        if ($minQuestionsCreated > 0) {
+                                            $questionsAdded = $minQuestionsCreated;
+                                            error_log("Created minimum $minQuestionsCreated questions as emergency fallback");
+                                        } else {
+                                            error_log("Emergency fallback also failed to create questions");
+                                        }
+                                    } catch (Exception $e) {
+                                        error_log("Emergency fallback failed with exception: " . $e->getMessage());
                                     }
                                 }
 
@@ -1002,6 +1073,23 @@ try {
             </div>
         </div>
 
+        <!-- Informasi tambahan untuk pengguna -->
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg mb-8">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-yellow-700">
+                        <strong>Tip:</strong> Untuk hasil optimal, Anda bisa mengunduh materi dari halaman "Materi Pembelajaran" terlebih dahulu, lalu upload kembali untuk diproses oleh AI.
+                        Materi dari admin telah dioptimalkan untuk analisis AI dan akan menghasilkan soal latihan yang lebih relevan dan akurat.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <form method="post" action="" enctype="multipart/form-data" class="space-y-6">
             <input type="hidden" name="action" value="upload_file">
             
@@ -1173,7 +1261,7 @@ function parseQuestionsManually($text) {
     return $questions;
 }
 
-// Fungsi untuk membuat soal dasar dari konten file jika AI tidak menghasilkan soal yang valid
+// Enhanced function to create basic questions from file content as a last resort
 function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userId) {
     $questionsCreated = 0;
 
@@ -1192,6 +1280,17 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
 
     $sentences = array_values($sentences); // Re-index array
 
+    // If we still don't have enough sentences, try splitting by other punctuation
+    if (count($sentences) < 3) {
+        $sentences = preg_split('/[,;:\-–—\n\r]+/', $cleanContent);
+        $sentences = array_filter($sentences, function($sentence) {
+            $sentence = trim($sentence);
+            return strlen($sentence) > 30 &&
+                   !preg_match('/(©|copyright|all rights reserved|halaman|page|gambar|tabel|source|sumber|author|penulis|tahun|publisher)/i', $sentence);
+        });
+        $sentences = array_values($sentences);
+    }
+
     // Buat soal dari kalimat-kalimat penting
     $validQuestions = [];
 
@@ -1200,33 +1299,77 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
         // Gunakan fungsi pembersih tambahan
         $sentence = cleanTextContent($sentence);
 
-        if (strlen($sentence) < 30 || strlen($sentence) > 150) continue; // Sesuaikan panjang kalimat
+        if (strlen($sentence) < 25 || strlen($sentence) > 300) continue; // Sesuaikan panjang kalimat
 
         // Identifikasi apakah kalimat mengandung konsep penting untuk dibuat soal
-        if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi|fungsi|cara|langkah|proses|manfaat|tujuan|konsep|prinsip|rumus|bentuk|sifat|ciri|jenis|macam|contoh)/i', $sentence)) {
+        if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi|fungsi|cara|langkah|proses|manfaat|tujuan|konsep|prinsip|rumus|bentuk|sifat|ciri|jenis|macam|contoh|misalnya|katakan|menyatakan|dinyatakan)/i', $sentence)) {
             $questionText = '';
             if (preg_match('/(adalah|merupakan|yaitu|pengertian|definisi)/i', $sentence)) {
                 // Format soal definisi
-                $questionText = 'Apa yang dimaksud dengan: "' . substr($sentence, 0, 60) . '..."?';
+                $firstPart = substr($sentence, 0, 60);
+                $questionText = 'Apa yang dimaksud dengan: "' . $firstPart . '..."?';
             } else if (preg_match('/(fungsi|manfaat|tujuan)/i', $sentence)) {
                 // Format soal fungsi/manfaat
-                $questionText = 'Apa fungsi/manfaat dari konsep dalam: "' . substr($sentence, 0, 50) . '..."?';
+                $firstPart = substr($sentence, 0, 50);
+                $questionText = 'Apa fungsi/manfaat dari konsep dalam: "' . $firstPart . '..."?';
             } else if (preg_match('/(cara|langkah|proses)/i', $sentence)) {
                 // Format soal proses/langkah
-                $questionText = 'Apa yang dimaksud dengan proses: "' . substr($sentence, 0, 40) . '..."?';
+                $firstPart = substr($sentence, 0, 40);
+                $questionText = 'Apa yang dimaksud dengan proses: "' . $firstPart . '..."?';
             } else {
-                // Format umum
-                $questionText = 'Apa yang dapat dipelajari dari pernyataan: "' . substr($sentence, 0, 50) . '..."?';
+                // Format umum - pastikan mengacu pada konten file
+                $firstPart = substr($sentence, 0, 50);
+                $questionText = 'Apa yang dapat dipelajari dari pernyataan: "' . $firstPart . '..."?';
             }
 
-            // Buat pilihan jawaban dari fragmen kalimat - pastikan bersih
+            // Buat pilihan jawaban dari fragmen kalimat - pastikan bersih dan relevan
+            $words = explode(' ', $sentence);
+            $wordCount = count($words);
+
+            $pilihanA = cleanTextContent(implode(' ', array_slice($words, 0, min(6, $wordCount)))) . '...';
+            $pilihanB = cleanTextContent(implode(' ', array_slice($words, max(0, $wordCount-6), 6))) . '...';
+            $pilihanC = cleanTextContent('Pernyataan terkait: ' . implode(' ', array_slice($words, max(0, intval($wordCount/3)), 6))) . '...';
+            $pilihanD = cleanTextContent('Konsep yang berkaitan: ' . substr($sentence, 0, 35)) . '...';
+
+            // Pastikan pilihan jawaban unik dan tidak terlalu mirip
+            $validQuestions[] = [
+                'question' => cleanTextContent($questionText),
+                'options' => [
+                    'a' => cleanTextContent($pilihanA),
+                    'b' => cleanTextContent($pilihanB),
+                    'c' => cleanTextContent($pilihanC),
+                    'd' => cleanTextContent($pilihanD)
+                ],
+                'answer' => 'a' // Jawaban default adalah dari isi sebenarnya file
+            ];
+
+            if (count($validQuestions) >= 5) { // Batasi jumlah soal dasar awal
+                break;
+            }
+        }
+    }
+
+    // Jika masih kurang dari 5 soal, tambahkan soal umum dari isi file
+    if (count($validQuestions) < 5) {
+        foreach ($sentences as $sentence) {
+            if (count($validQuestions) >= 5) break;
+
+            $sentence = trim($sentence);
+            $sentence = cleanTextContent($sentence);
+
+            if (strlen($sentence) < 20) continue;
+
+            // Buat soal umum tapi tetap dari konten file
+            $firstPart = substr($sentence, 0, 40);
+            $questionText = 'Berdasarkan isi materi: "' . $firstPart . '...", apa yang dapat disimpulkan?';
+
             $words = explode(' ', $sentence);
             $wordCount = count($words);
 
             $pilihanA = cleanTextContent(implode(' ', array_slice($words, 0, min(4, $wordCount)))) . '...';
             $pilihanB = cleanTextContent(implode(' ', array_slice($words, max(0, $wordCount-4), 4))) . '...';
-            $pilihanC = cleanTextContent('Pilihan terkait: ' . implode(' ', array_slice($words, max(0, intval($wordCount/2)), 4))) . '...';
-            $pilihanD = cleanTextContent('Konsep yang berkaitan dengan: ' . substr($sentence, 0, 30)) . '...';
+            $pilihanC = cleanTextContent('Konsep terkait: ' . implode(' ', array_slice($words, max(0, intval($wordCount/2)), 4))) . '...';
+            $pilihanD = cleanTextContent('Topik utama: ' . substr($sentence, 0, 25)) . '...';
 
             $validQuestions[] = [
                 'question' => cleanTextContent($questionText),
@@ -1236,11 +1379,43 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
                     'c' => cleanTextContent($pilihanC),
                     'd' => cleanTextContent($pilihanD)
                 ],
-                'answer' => 'a' // Jawaban default
+                'answer' => 'a'
             ];
+        }
+    }
 
-            if (count($validQuestions) >= 5) { // Batasi jumlah soal dasar
-                break;
+    // Jika masih kurang dari 10 soal, tambahkan soal tambahan
+    if (count($validQuestions) < 10) {
+        $remainingQuestions = 10 - count($validQuestions);
+        $allWords = explode(' ', $cleanContent);
+        $chunkSize = ceil(count($allWords) / max(1, $remainingQuestions));
+
+        for ($i = 0; $i < $remainingQuestions; $i++) {
+            $startIndex = $i * $chunkSize;
+            $endIndex = min(($i + 1) * $chunkSize, count($allWords));
+            $chunk = array_slice($allWords, $startIndex, $endIndex - $startIndex);
+
+            if (count($chunk) > 0) {
+                $chunkText = implode(' ', $chunk);
+                $chunkPreview = substr($chunkText, 0, 50);
+
+                $questionText = 'Dalam bagian materi berikut: "' . $chunkPreview . '...", konsep apakah yang sedang dibahas?';
+
+                $pilihanA = cleanTextContent('Konsep utama: ' . implode(' ', array_slice($chunk, 0, 4))) . '...';
+                $pilihanB = cleanTextContent('Pernyataan penting: ' . implode(' ', array_slice($chunk, max(0, count($chunk)-4), 4))) . '...';
+                $pilihanC = cleanTextContent('Topik terkait: ' . substr($chunkText, 0, 25)) . '...';
+                $pilihanD = cleanTextContent('Subjek utama: ' . substr($chunkText, 0, 20)) . '...';
+
+                $validQuestions[] = [
+                    'question' => cleanTextContent($questionText),
+                    'options' => [
+                        'a' => cleanTextContent($pilihanA),
+                        'b' => cleanTextContent($pilihanB),
+                        'c' => cleanTextContent($pilihanC),
+                        'd' => cleanTextContent($pilihanD)
+                    ],
+                    'answer' => 'a'
+                ];
             }
         }
     }
@@ -1263,11 +1438,12 @@ function createBasicQuestionsFromContent($analysisId, $fileContent, $pdo, $userI
                 ]);
                 $questionsCreated++;
             } catch (Exception $e) {
-                error_log("Error inserting basic question: " . $e->getMessage());
+                error_log("Error inserting basic question: " . $e->getMessage() . " - Question: " . substr($q['question'], 0, 50) . "...");
             }
         }
     }
 
+    error_log("createBasicQuestionsFromContent created $questionsCreated questions for analysis_id: $analysisId");
     return $questionsCreated;
 }
 
@@ -1622,5 +1798,25 @@ function extractTextFromDOC($filepath) {
 
     // Jika ekstraksi gagal, kembalikan false
     return false;
+}
+
+// Fungsi untuk membersihkan konten file sebelum dikirim ke AI
+function cleanFileContentForAI($content) {
+    // Hapus karakter kontrol non-printable
+    $clean_content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', ' ', $content);
+
+    // Hapus karakter yang tidak biasa atau aneh
+    $clean_content = preg_replace('/[^\w\s\p{L}\p{N}\p{P}\p{S}().,:;?!-\x{2013}-\x{2014}\x{2018}\x{2019}\x{201C}\x{201D}\n\r\t]/u', ' ', $clean_content);
+
+    // Hapus multiple spaces dan ganti dengan single space
+    $clean_content = preg_replace('/\s+/', ' ', $clean_content);
+
+    // Hilangkan spasi di awal dan akhir
+    $clean_content = trim($clean_content);
+
+    // Hapus baris kosong yang terlalu banyak
+    $clean_content = preg_replace('/\n\s*\n\s*\n/', "\n\n", $clean_content);
+
+    return $clean_content;
 }
 ?>

@@ -265,7 +265,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_answers'])) {
             </div>
 
         <?php elseif (!empty($questions)): ?>
-            <h2 class="text-3xl font-bold text-gray-800 mb-8 text-center">Mengerjakan Soal Latihan</h2>
             <form method="post" id="exerciseForm">
                 <input type="hidden" name="submit_answers" value="1">
                 

@@ -167,40 +167,51 @@ class AIHandler {
         // Batasi panjang konten untuk menghindari batas token
         $truncatedContent = substr($fileContent, 0, 10000); // Batasi hingga 10,000 karakter
 
+        // Deteksi topik utama dari file untuk instruksi lebih spesifik
+        $topikUtama = $this->deteksiTopikUtama($truncatedContent, $fileName);
+
         // Buat prompt yang sangat spesifik dan tegas membaca isi file
-        $prompt = "Kamu adalah AI spesialis pendidikan. ANALISIS DAN BUAT SOAL SECARA SPESIFIK BERDASARKAN ISI FILE BERIKUT.\n\n";
+        $prompt = "Kamu adalah AI spesialis pendidikan dan analis konten file. ANALISIS ISI SEBENARNYA DARI FILE BERIKUT DAN BUAT SOAL SECARA SPESIFIK BERDASARKAN ISI FILE INI.\n\n";
+        $prompt .= "======= INFORMASI FILE =======\n";
         $prompt .= "NAMA FILE: " . htmlspecialchars($fileName) . "\n";
-        $prompt .= "ISI FILE LENGKAP (BACA DENGAN SANGAT TELITI):\n";
+        $prompt .= "TOPIK UTAMA DARI FILE: " . $topikUtama . "\n";
+        $prompt .= "======= ISI FILE LENGKAP (WAJIB DIBACA SECARA LENGKAP) =======\n";
         $prompt .= $truncatedContent . "\n\n";
-        $prompt .= "PERINTAH SANGAT TEGAS:\n";
-        $prompt .= "1. BACA ISI FILE INI DENGAN SANGAT TELITI DAN MENDALAM\n";
-        $prompt .= "2. ANALISIS ISI SEBENARNYA DARI FILE INI\n";
-        $prompt .= "3. IDENTIFIKASI TOPIK UTAMA (misal: Matematika-Kuadrat, Fisika-Newton, Kimia-AsamBasa, dll)\n";
-        $prompt .= "4. IDENTIFIKASI KONSEP-KONSEP PENTING, DEFINISI, RUMUS, ATAU PRINSIP UTAMA DALAM FILE\n";
-        $prompt .= "5. BUAT TEPAT 10 SOAL PILIHAN GANDA BERDASARKAN ISI LANGSUNG FILE INI\n";
-        $prompt .= "6. SETIAP SOAL HARUS MENGACU PADA ISI SPESIFIK DALAM FILE\n";
-        $prompt .= "7. PILIHAN JAWABAN JUGA HARUS BERDASARKAN ISI FILE, BUKAN UMUM\n";
-        $prompt .= "8. KUNCI JAWABAN HARUS BENAR BERDASARKAN ISI FILE\n\n";
-        $prompt .= "GARIS BAWAH: JANGAN BUAT SOAL UMUM. SEMUA HARUS BERDASARKAN ISI FILE LANGSUNG.\n\n";
+        $prompt .= "======= PERINTAH ANALISIS & PEMBUATAN SOAL =======\n";
+        $prompt .= "TUGAS UTAMA: BACA ISI FILE INI DENGAN SANGAT TELITI DAN MENDALAM, LALU ANALISIS ISI SEBENARNYA DAN BUAT 10 SOAL PILIHAN GANDA BERDASARKAN ISI LANGSUNG FILE INI.\n\n";
+
+        $prompt .= "LANGKAH-LANGKAH YANG HARUS DIIKUTI:\n";
+        $prompt .= "1. ANALISIS ISI SEBENARNYA DARI FILE SECARA RINCI (identifikasi topik utama, konsep penting, definisi, rumus, prinsip, contoh, dll.)\n";
+        $prompt .= "2. BUAT TEPAT 10 SOAL PILIHAN GANDA BERDASARKAN ISI LANGSUNG FILE INI (TIDAK BOLEH MENGGUNAKAN PENGETAHUAN UMUM)\n";
+        $prompt .= "3. SETIAP SOAL HARUS MENGACU PADA ISI SPESIFIK DALAM FILE (menyebutkan informasi langsung dari file)\n";
+        $prompt .= "4. PILIHAN JAWABAN JUGA HARUS BERDASARKAN ISI FILE, BUKAN PENGETAHUAN UMUM\n";
+        $prompt .= "5. KUNCI JAWABAN HARUS BENAR BERDASARKAN ISI FILE SEBENARNYA\n\n";
+
+        $prompt .= "GARIS BAWAH: SEMUA ANALISIS, SOAL, DAN PILIHAN JAWABAN HARUS 100% BERDASARKAN ISI FILE LANGSUNG, BUKAN PENGETAHUAN UMUM.\n\n";
 
         // Tambahkan contoh spesifik agar AI lebih mengerti
-        $prompt .= "CONTOH JIKA ISI FILE BERISI: 'Fungsi kuadrat adalah fungsi yang memiliki bentuk umum f(x) = ax² + bx + c, di mana a ≠ 0. Grafik fungsi kuadrat berbentuk parabola.'\n";
-        $prompt .= "MAKA SOAL YANG DIBUAT: 'Apa bentuk umum dari fungsi kuadrat?'\n";
+        $prompt .= "======= CONTOH JIKA ISI FILE BERISI: =======\n";
+        $prompt .= "Contoh isi file: 'Fungsi kuadrat adalah fungsi yang memiliki bentuk umum f(x) = ax² + bx + c, di mana a ≠ 0. Grafik fungsi kuadrat berbentuk parabola.'\n";
+        $prompt .= "MAKA SOAL YANG DIBUAT: 'Apa bentuk umum dari fungsi kuadrat menurut materi di atas?'\n";
         $prompt .= "PILIHAN JAWABAN: a) f(x) = ax² + bx + c, b) f(x) = ax + b, c) f(x) = ax³ + bx² + c, d) f(x) = aˣ\n";
         $prompt .= "KUNCI JAWABAN: a\n\n";
 
-        $prompt .= "CONTOH LAIN: Jika isi file menyebutkan 'Hukum Ohm menyatakan bahwa V = I × R', maka soal harus: 'Apa yang dinyatakan dalam Hukum Ohm?'\n";
-        $prompt .= "BUKAN soal umum seperti 'Apa itu arus listrik?'\n\n";
+        $prompt .= "======= CONTOH LAIN UNTUK TOPIK UTAMA: {$topikUtama} =======\n";
+        $prompt .= "Jika isi file berisi tentang {$topikUtama}, maka buat soal terkait {$topikUtama} berdasarkan isi file langsung.\n";
+        $prompt .= "Contoh: Jika file berisi 'Oksidasi adalah proses kehilangan elektron sedangkan reduksi adalah proses penerimaan elektron dalam reaksi redoks', maka soal harus: 'Apa yang dimaksud dengan oksidasi menurut materi di atas?'\n";
+        $prompt .= "PILIHAN JAWABAN: a) proses kehilangan elektron, b) proses penerimaan elektron, c) proses kehilangan oksigen, d) proses penerimaan oksigen\n";
+        $prompt .= "KUNCI JAWABAN: a\n\n";
 
-        $prompt .= "HASILKAN DALAM FORMAT JSON SBB:\n\n";
+        $prompt .= "======= FORMAT OUTPUT YANG WAJIB DIGUNAKAN =======\n";
+        $prompt .= "HASILKAN DALAM FORMAT SBB DENGAN PEMBATAS YANG SANGAT JELAS:\n\n";
         $prompt .= "---ANALYSIS_START---\n";
-        $prompt .= "Ringkasan:\n[Tulis ringkasan spesifik berdasarkan isi file sebenarnya]\n\n";
-        $prompt .= "Penjabaran Materi:\n[Jelaskan konsep-konsep utama yang ditemukan dalam isi file sebenarnya]\n";
+        $prompt .= "Ringkasan:\n[Tulis ringkasan spesifik berdasarkan isi file sebenarnya, fokus pada materi utama yang ditemukan dalam file]\n\n";
+        $prompt .= "Penjabaran Materi:\n[Jelaskan konsep-konsep utama yang ditemukan dalam isi file sebenarnya, sebutkan contoh-contoh atau informasi spesifik dari file]\n";
         $prompt .= "---ANALYSIS_END---\n\n";
         $prompt .= "---QUESTIONS_START---\n";
         $prompt .= "[\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 1\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 1 (harus menyebutkan informasi dari file)\",\n";
         $prompt .= "    \"pilihan\": {\n";
         $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
         $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
@@ -210,7 +221,37 @@ class AIHandler {
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 2\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 2 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"b\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 3 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"c\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 4 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"d\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 5 (harus menyebutkan informasi dari file)\",\n";
         $prompt .= "    \"pilihan\": {\n";
         $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
         $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
@@ -220,7 +261,37 @@ class AIHandler {
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 3\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 6 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"b\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 7 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"c\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 8 (harus menyebutkan informasi dari file)\",\n";
+        $prompt .= "    \"pilihan\": {\n";
+        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
+        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
+        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
+        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
+        $prompt .= "    },\n";
+        $prompt .= "    \"kunci_jawaban\": \"d\"\n";
+        $prompt .= "  },\n";
+        $prompt .= "  {\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 9 (harus menyebutkan informasi dari file)\",\n";
         $prompt .= "    \"pilihan\": {\n";
         $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
         $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
@@ -230,78 +301,23 @@ class AIHandler {
         $prompt .= "    \"kunci_jawaban\": \"a\"\n";
         $prompt .= "  },\n";
         $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 4\",\n";
+        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 10 (harus menyebutkan informasi dari file)\",\n";
         $prompt .= "    \"pilihan\": {\n";
         $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
         $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
         $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
         $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
         $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 5\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 6\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 7\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 8\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 9\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
-        $prompt .= "  },\n";
-        $prompt .= "  {\n";
-        $prompt .= "    \"soal\": \"Soal spesifik berdasarkan isi file sebenarnya nomor 10\",\n";
-        $prompt .= "    \"pilihan\": {\n";
-        $prompt .= "      \"a\": \"Pilihan jawaban berdasarkan isi file sebenarnya a\",\n";
-        $prompt .= "      \"b\": \"Pilihan jawaban berdasarkan isi file sebenarnya b\",\n";
-        $prompt .= "      \"c\": \"Pilihan jawaban berdasarkan isi file sebenarnya c\",\n";
-        $prompt .= "      \"d\": \"Pilihan jawaban berdasarkan isi file sebenarnya d\"\n";
-        $prompt .= "    },\n";
-        $prompt .= "    \"kunci_jawaban\": \"a\"\n";
+        $prompt .= "    \"kunci_jawaban\": \"b\"\n";
         $prompt .= "  }\n";
         $prompt .= "]\n";
         $prompt .= "---QUESTIONS_END---\n\n";
-        $prompt .= "PENTING: SEMUA ISI ANALISIS, SOAL, DAN PILIHAN JAWABAN HARUS 100% BERDASARKAN ISI FILE DI ATAS, BUKAN PENGETAHUAN UMUM.";
+
+        $prompt .= "PENTING: SEMUA ISI ANALISIS, SOAL, DAN PILIHAN JAWABAN HARUS 100% BERDASARKAN ISI FILE INI, BUKAN PENGETAHUAN UMUM.\n";
+        $prompt .= "GUNAKAN KATA-KATA LANGSUNG DARI FILE UNTUK MEMBUAT SOAL AGAR JELAS BAHWA SOAL INI BERDASARKAN ISI FILE SEBENARNYA.\n";
+        $prompt .= "BUAT SOAL YANG SESUAI DENGAN TOPIK UTAMA YANG TELAH DIIDENTIFIKASI: {$topikUtama}\n";
+        $prompt .= "JANGAN BUAT SOAL UMUM YANG BISA DIJAWAB DENGAN PENGETAHUAN UMUM.\n";
+        $prompt .= "JIKA FILE TIDAK MENGANDUNG MATERI YANG CUKUP UNTUK 10 SOAL, TETAP BUAT SOAL YANG BERDASARKAN ISI FILE, MESKI PUN SEDERHANA.";
 
         // Try API first, fall back to content-based generation if it fails
         try {
@@ -310,6 +326,80 @@ class AIHandler {
             error_log("API failed for file analysis, using fallback: " . $e->getMessage());
             return $this->generateResponseFromContent($fileContent, $fileName);
         }
+    }
+
+    /**
+     * Method untuk mendeteksi topik utama dari konten file
+     */
+    private function deteksiTopikUtama($content, $fileName) {
+        $content_lower = strtolower($content);
+
+        // Daftar topik umum dalam pendidikan
+        $topik_keywords = [
+            'matematika' => ['fungsi', 'kuadrat', 'aljabar', 'geometri', 'trigonometri', 'kalkulus', 'persamaan', 'rumus', 'hitung', 'integral', 'turunan', 'limit', 'statistika', 'peluang', 'matriks', 'vektor'],
+            'fisika' => ['newton', 'gaya', 'energi', 'momentum', 'gelombang', 'cahaya', 'listrik', 'magnet', 'arus', 'tekanan', 'suhu', 'kalor', 'termal', 'optik', 'elektromagnetik', 'kinematika', 'dinamika'],
+            'kimia' => ['atom', 'molekul', 'reaksi', 'asam', 'basa', 'larutan', 'ion', 'elektron', 'proton', 'neutron', 'redoks', 'stoikiometri', 'elektrokimia', 'kimia organik', 'kimia anorganik'],
+            'biologi' => ['sel', 'dna', 'metabolisme', 'fotosintesis', 'respirasi', 'evolusi', 'ekosistem', 'organ', 'jaringan', 'genetika', 'mikroba', 'virus', 'bakteri', 'sistem tubuh'],
+            'ips' => ['ekonomi', 'sosiologi', 'geografi', 'sejarah', 'hukum', 'politik', 'pemerintahan', 'negara', 'globalisasi'],
+            'bahasa indonesia' => ['tata bahasa', 'kata baku', 'imbuhan', 'klausa', 'kalimat', 'paragraf', 'struktur teks', 'jenis teks'],
+            'sains' => ['ilmu', 'pengamatan', 'eksperimen', 'hipotesis', 'proses', 'metodologi', 'fenomena'],
+            'kimia organik' => ['karbon', 'senyawa organik', 'alkana', 'alkena', 'alkuna', 'alkohol', 'eter', 'aldehid', 'keton', 'asam karboksilat', 'ester'],
+            'kimia anorganik' => ['ion', 'garam', 'asam-basa', 'kompleks', 'logam transisi', 'senyawa ion'],
+            'kimia fisika' => ['termodinamika', 'kinetika', 'mekanika kuantum', 'spektroskopi', 'teori tumbukan'],
+            'biokimia' => ['protein', 'karbohidrat', 'lipid', 'asam nukleat', 'enzim', 'metabolisme', 'biosintesis'],
+            'fisika modern' => ['relativitas', 'mekanika kuantum', 'fisika nuklir', 'fisika partikel', 'atom'],
+            'astronomi' => ['tata surya', 'planet', 'bintang', 'galaksi', 'satelit', 'teleskop', 'orbit', 'gravitasi'],
+            'geografi' => ['peta', 'iklim', 'cuaca', 'benua', 'negara', 'topografi', 'batas wilayah', 'sungai', 'gunung'],
+            'sejarah' => ['peradaban', 'kebudayaan', 'kerajaan', 'perang', 'tokoh', 'masyarakat', 'kebijakan', 'revolusi', 'kolonialisme'],
+            'ekonomi' => ['uang', 'pasar', 'permintaan', 'penawaran', 'inflasi', 'deflasi', 'investasi', 'konsumsi', 'produksi'],
+            'sosiologi' => ['masyarakat', 'interaksi', 'kelompok', 'budaya', 'norma', 'nilai', 'stratifikasi', 'konflik'],
+            'antropologi' => ['budaya', 'adat', 'tradisi', 'kepercayaan', 'etnis', 'antropologi budaya'],
+            'psikologi' => ['jiwa', 'perilaku', 'emosi', 'kognisi', 'persepsi', 'belajar', 'memori', 'motivasi'],
+            'filosofi' => ['logika', 'etika', 'metafisika', 'ontologi', 'epistemologi', 'estetika'],
+            'sains komputer' => ['algoritma', 'pemrograman', 'data', 'struktur data', 'basis data', 'jaringan', 'keamanan'],
+            'fisika partikel' => ['kuark', 'lepton', 'boson', 'hadron', 'partikel dasar', 'model standar'],
+            'kimia analitik' => ['spektroskopi', 'kromatografi', 'titrasi', 'analisis kuantitatif', 'analisis kualitatif'],
+            'farmasi' => ['obat', 'farmakologi', 'toksikologi', 'sintesis obat', 'efek samping', 'dosis'],
+            'kedokteran' => ['penyakit', 'diagnosis', 'terapi', 'anatomi', 'fisiologi', 'patologi', 'farmakologi'],
+            'agama' => ['agama islam', 'agama kristen', 'agama hindu', 'agama budha', 'agama konghucu', 'ajaran', 'ibadah', 'akhlak'],
+            'pkn' => ['negara', 'konstitusi', 'hukum', 'warga negara', 'hak asasi', 'demokrasi', 'pemerintahan'],
+            'seni' => ['musik', 'tari', 'lukis', 'patung', 'teater', 'sastra', 'seni rupa', 'seni pertunjukan']
+        ];
+
+        $detected_topics = [];
+
+        foreach ($topik_keywords as $topik => $keywords) {
+            $found_keywords = 0;
+            foreach ($keywords as $keyword) {
+                if (strpos($content_lower, $keyword) !== false) {
+                    $found_keywords++;
+                }
+            }
+            if ($found_keywords > 0) {
+                $detected_topics[] = ['topik' => $topik, 'count' => $found_keywords];
+            }
+        }
+
+        // Urutkan berdasarkan jumlah keyword yang ditemukan
+        usort($detected_topics, function($a, $b) {
+            return $b['count'] - $a['count'];
+        });
+
+        if (!empty($detected_topics)) {
+            return $detected_topics[0]['topik'];
+        }
+
+        // Jika tidak ada topik yang terdeteksi, coba identifikasi dari nama file
+        $fileName_lower = strtolower($fileName);
+        if (strpos($fileName_lower, 'matematika') !== false) return 'matematika';
+        if (strpos($fileName_lower, 'fisika') !== false) return 'fisika';
+        if (strpos($fileName_lower, 'kimia') !== false) return 'kimia';
+        if (strpos($fileName_lower, 'biologi') !== false) return 'biologi';
+        if (strpos($fileName_lower, 'ips') !== false) return 'ips';
+        if (strpos($fileName_lower, 'b_indonesia') !== false || strpos($fileName_lower, 'bindo') !== false) return 'bahasa indonesia';
+
+        // Default fallback
+        return 'materi pendidikan umum';
     }
 
     /**
